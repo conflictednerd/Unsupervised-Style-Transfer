@@ -1,0 +1,23 @@
+0. Data
+1. Vocab (BPE)
+1 days
+2. Models -> Encoder, Decoder, Disc
+3 days
+3. GAN training
+4. Autoencoder loss
+5. Main training loop
+1 week
+6. Generate (Beam search)
+7. Training!
+3 days
+
+x = BPE(sent)
+x = embedding (x)
+Encoder (x) -> h = h_1, ..., h_n
+    *Decoder(h) -> y
+    Disc(h) -> style
+
+y_1, y_2, (x_1, x_2) -> 
+
+[h_1, ..., h_n] + (y_1, y_2, ?) #
+[h_1, ..., h_n] + (x_1, x_2, ?) #
