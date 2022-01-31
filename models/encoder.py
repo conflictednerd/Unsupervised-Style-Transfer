@@ -18,7 +18,8 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(max_len, 1, d_model)
         pe[:, 0, 0::2] = torch.sin(position * div_term)
         pe[:, 0, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)  # comment to learn positional embeddings
+        # comment to learn positional embeddings
+        self.register_buffer('pe', pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -33,7 +34,12 @@ class PositionalEncoding(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, d_model, nhead, dim_feedforward, num_layers, vocab_size, batch_first, device) -> None:
+    def __init__(
+        self, d_model: int, nhead: int,
+        dim_feedforward: int, num_layers: int, vocab_size: int,
+        batch_first: bool, device
+    ) -> None:
+
         super().__init__()
         self.device = device
         self.d_model = d_model

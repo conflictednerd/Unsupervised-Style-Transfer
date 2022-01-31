@@ -1,3 +1,4 @@
+from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,8 +10,8 @@ class CNNDiscriminator(nn.Module):
         GAN discriminator is a TextCNN
     '''
 
-    def __init__(self, in_channels, out_channels, kernel_sizes,
-                 hidden_size, num_classes, dropout=0.1):
+    def __init__(self, in_channels: int, out_channels: int, kernel_sizes: List[int],
+                 hidden_size: int, num_classes: int, dropout: float = 0.1) -> None:
         '''
         Args:
         in_channels -- the input feature maps. Should be only one for text.
@@ -36,21 +37,22 @@ class CNNDiscriminator(nn.Module):
             self.convs.append(conv)
         self.linear = nn.Linear(out_channels*len(kernel_sizes), num_classes)
 
-    def forward(self, x):
-        """
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        '''
         Args:
         x -- (batch_size(B), seq_len(T), hidden_size(d))
             = (1, seq_length (max_length for professor), hidden_size)
-        """
+        '''
         x = x.unsqueeze(1)  # unsqueeze to add channel dimension
         x = [
             F.leaky_relu(conv(x), negative_slope=0.01).squeeze(3)
-            for conv in self.convs] # x[i].shape = [B x out_channels x T-kernel_sizes[i]]
+            for conv in self.convs]  # x[i].shape = [B x out_channels x T-kernel_sizes[i]]
         # perform max pooling over the entire sequence
         x = [
-            F.max_pool1d(i, i.size(2)).squeeze(2) for i in x] #  x[i].shape = [B x out_channels]
+            F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]  # x[i].shape = [B x out_channels]
 
-        x = torch.cat(x, 1) # x.shape = [B x (out_channels * len (kernel_sizes) )]
+        # x.shape = [B x (out_channels * len (kernel_sizes) )]
+        x = torch.cat(x, 1)
         x = self.dropoutLayer(x)
         x = self.linear(x)
 
