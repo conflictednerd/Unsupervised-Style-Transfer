@@ -21,3 +21,11 @@ y_1, y_2, (x_1, x_2) ->
 
 [h_1, ..., h_n] + (y_1, y_2, ?) #
 [h_1, ..., h_n] + (x_1, x_2, ?) #
+
+
+Dataset + Dataloader: should
+1. sample a number of sentences from trainset along with their style labels
+2. tokenize and index them (with BPE and Vocab class)
+3. pad them (data collator)
+4. store original lengths of [tokenized] sentences in seq_lens
+5. return (batch[BxT], seq_lens[B])
