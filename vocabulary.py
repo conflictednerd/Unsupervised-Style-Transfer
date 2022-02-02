@@ -13,7 +13,7 @@ class Vocab():
     # tokenize and encode
     # save , load
 
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
         self.encoder = Encoder(silent=True)
         self.list_poet = []
