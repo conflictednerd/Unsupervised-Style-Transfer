@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# Adopted from https://github.com/mberaha/style_text/blob/master/src/discriminator.py
+# Adapted from https://github.com/mberaha/style_text/blob/master/src/discriminator.py
 class CNNDiscriminator(nn.Module):
     '''
         GAN discriminator is a TextCNN

@@ -33,6 +33,30 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
+'''
+ATTENTION!:
+we should use ONE optimizer for both the embedding layer AND the encoder
+'''
+
+
+class EmbeddingLayer(nn.Module):
+    def __init__(self, vocab_size, d_model, batch_first) -> None:
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_encoding = PositionalEncoding(
+            d_model, batch_first=batch_first)
+        self.init_weights()
+
+    def init_weights(self) -> None:
+        initrange = 0.2
+        self.embedding.weight.data.uniform_(-initrange, initrange)
+
+    def forwrad(self, x):
+        x = self.embedding(x) * math.sqrt(self.d_model)
+        x = self.pos_encoding(x)
+        return x
+
+
 class Encoder(nn.Module):
     def __init__(
         self, d_model: int, nhead: int,
@@ -44,23 +68,12 @@ class Encoder(nn.Module):
         self.device = device
         self.d_model = d_model
 
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.pos_encoding = PositionalEncoding(
-            d_model, batch_first=batch_first)
         self.model = nn.TransformerEncoder(encoder_layer=nn.TransformerEncoderLayer(
             d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, batch_first=batch_first, device=device),
             num_layers=num_layers)
 
-        self.init_weights()
-
-    def init_weights(self) -> None:
-        initrange = 0.2
-        self.embedding.weight.data.uniform_(-initrange, initrange)
-
     def forward(self, x: torch.Tensor, seq_lens: List[int]) -> torch.Tensor:
         assert x.shape[0] == len(seq_lens)  # = batch_size
-        x = self.embedding(x) * math.sqrt(self.d_model)
-        x = self.pos_encoding(x)
         src_key_padding_mask = self.get_padding_mask(
             B=x.shape[0], T=x.shape[1], seq_lens=seq_lens)
         x = self.model(src=x, src_key_padding_mask=src_key_padding_mask)
