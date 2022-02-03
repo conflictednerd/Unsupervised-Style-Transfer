@@ -32,3 +32,5 @@ Dataset + Dataloader: should
 5. return (batch[BxT], seq_lens[B])
 
 In the decoder, we should also pass a causal mask (don't see future) for the target sequence, and a padding mask for encoder and decoder
+
+Create a supervised test dataset
