@@ -1,11 +1,7 @@
 import csv
 import os
 from typing import List
-import torch
-import random
-import pickle
-import numpy as np
-import pandas as pd
+
 from bpe import Encoder
 
 extra_special_tokens = [
@@ -15,7 +11,7 @@ extra_special_tokens = [
     '__style4',
     '__style5',
     '__style6',
-    '__extra1', # -> Use as BOS, EOS, other special tokens
+    '__extra1',  # -> Use as BOS, EOS, other special tokens
     '__extra2',
     '__extra3',
     '__extra4',
@@ -42,9 +38,11 @@ poem_config = {
     'strict': False,
 }
 
-#TODO: make load a class method to facilitate loading and saving different tokenizers
+# TODO: make load a class method to facilitate loading and saving different tokenizers
+
+
 class Tokenizer():
-    # Don't change these!    
+    # Don't change these!
     EOW = '__eow'
     SOW = '__sow'
     UNK = '__unk'
@@ -85,7 +83,8 @@ class Tokenizer():
 
     def load(self, file_name: str = None) -> None:
         file_name = self.name if file_name is None else file_name
-        self.encoder = self.encoder.load(os.path.join(self.MODELS_DIR, file_name))
+        self.encoder = self.encoder.load(
+            os.path.join(self.MODELS_DIR, file_name))
 
     def fit(self):
         assert self.DATA_FILE is not None, 'You have not specified training data for the tokenizer'
