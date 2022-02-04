@@ -3,6 +3,7 @@ from typing import List
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class PositionalEncoding(nn.Module):
@@ -42,6 +43,7 @@ we should use ONE optimizer for both the embedding layer AND the encoder
 class EmbeddingLayer(nn.Module):
     def __init__(self, vocab_size, d_model, batch_first) -> None:
         super().__init__()
+        self.d_model = d_model
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.pos_encoding = PositionalEncoding(
             d_model, batch_first=batch_first)
@@ -51,7 +53,7 @@ class EmbeddingLayer(nn.Module):
         initrange = 0.2
         self.embedding.weight.data.uniform_(-initrange, initrange)
 
-    def forwrad(self, x):
+    def forward(self, x):
         x = self.embedding(x) * math.sqrt(self.d_model)
         x = self.pos_encoding(x)
         return x
@@ -67,9 +69,10 @@ class Encoder(nn.Module):
         super().__init__()
         self.device = device
         self.d_model = d_model
-
         self.model = nn.TransformerEncoder(encoder_layer=nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, batch_first=batch_first, device=device),
+            d_model=d_model, nhead=nhead, dropout=0.3,
+            activation=lambda x: F.leaky_relu(x, negative_slope=0.05),
+            dim_feedforward=dim_feedforward, batch_first=batch_first, device=device),
             num_layers=num_layers)
 
     def forward(self, x: torch.Tensor, seq_lens: List[int]) -> torch.Tensor:
@@ -94,10 +97,12 @@ class Encoder(nn.Module):
         return src_key_padding_mask
 
 
-# m = Encoder(256, 8, 1024, 4, 10000, True, 'cpu')
+# m = Encoder(256, 8, 512, 2, 6000, True, 'cpu')
+# emb = EmbeddingLayer(6_000, 256, True)
 # print(sum(p.numel() for p in m.parameters() if p.requires_grad))
+# print(sum(p.numel() for p in emb.parameters() if p.requires_grad))
 # # batch of 16 sequences, each with length 256
-# x = torch.randint(0, 10000, (16, 256))
+# x = torch.randint(0, 6000, (16, 256))
 # seq_lens = [100]*16
-# out = m(x, seq_lens)
+# out = m(emb(x), seq_lens)
 # print(out.shape)
