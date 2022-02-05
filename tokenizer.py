@@ -59,7 +59,11 @@ class Tokenizer():
         self.MODELS_DIR = models_dir
         self.DATA_FILE = data_file
         self.vocab_size = self.config['vocab_size']
-        self.encoder = Encoder(**self.config)
+        self.encoder = None
+        if not load:
+            self.encoder = Encoder(**self.config)
+        else:
+            self.load()
 
     def tokenize(self, sentences) -> List[List[str]]:
         '''
@@ -85,7 +89,7 @@ class Tokenizer():
 
     def load(self, file_name: str = None) -> None:
         file_name = self.name if file_name is None else file_name
-        self.encoder = self.encoder.load(
+        self.encoder = Encoder.load(
             os.path.join(self.MODELS_DIR, file_name))
 
     def fit(self):
