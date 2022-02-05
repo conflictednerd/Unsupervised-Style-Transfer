@@ -81,7 +81,7 @@ class Tokenizer():
         '''
         Given a set of token_id sequences, transforms each of them back into a sentence
         '''
-        return self.encoder.inverse_transform(sentences)
+        return list(self.encoder.inverse_transform(sentences))
 
     def save(self, file_name: str = None) -> None:
         file_name = self.name if file_name is None else file_name
