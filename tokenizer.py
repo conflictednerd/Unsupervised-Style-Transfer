@@ -57,6 +57,7 @@ class Tokenizer():
         self.type = type
         self.MODELS_DIR = models_dir
         self.DATA_FILE = data_file
+        self.vocab_size = self.config['vocab_size']
         self.encoder = Encoder(**self.config)
 
     def tokenize(self, sentences) -> List[List[str]]:
