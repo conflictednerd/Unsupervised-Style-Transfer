@@ -38,6 +38,7 @@ poem_config = {
     'strict': False,
 }
 
+
 # TODO: make load a class method to facilitate loading and saving different tokenizers
 
 
@@ -49,12 +50,12 @@ class Tokenizer():
     PAD = '__pad'
 
     def __init__(self,
-                 name: str, load: bool = True, type: str = 'snp',
+                 name: str, load: bool = True, type_: str = 'snp',
                  models_dir: str = './models_dir/', data_file: str = None,
                  ) -> None:
-        self.config = snp_config if type == 'snp' else poem_config
+        self.config = snp_config if type_ == 'snp' else poem_config
         self.name = name
-        self.type = type
+        self.type = type_
         self.MODELS_DIR = models_dir
         self.DATA_FILE = data_file
         self.vocab_size = self.config['vocab_size']

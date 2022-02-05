@@ -154,3 +154,5 @@ cython_debug/
 data/mizan_en.txt
 data/mizan_fa.txt
 data/train.tsv
+*.xml
+*.iml
