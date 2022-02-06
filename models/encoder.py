@@ -1,5 +1,4 @@
 import math
-from typing import List
 
 import torch
 import torch.nn as nn
@@ -75,26 +74,9 @@ class Encoder(nn.Module):
             dim_feedforward=dim_feedforward, batch_first=batch_first, device=device),
             num_layers=num_layers)
 
-    def forward(self, x: torch.Tensor, seq_lens: List[int]) -> torch.Tensor:
-        assert x.shape[0] == len(seq_lens)  # = batch_size
-        src_key_padding_mask = self.get_padding_mask(
-            B=x.shape[0], T=x.shape[1], seq_lens=seq_lens)
+    def forward(self, x: torch.Tensor, src_key_padding_mask) -> torch.Tensor:
         x = self.model(src=x, src_key_padding_mask=src_key_padding_mask)
         return x
-
-    # TODO: should be done in the dataset?
-    def get_padding_mask(self, B: int, T: int, seq_lens: List[int]) -> torch.Tensor:
-        '''
-        Creates a BxT mask to identify padding tokens in each sequence
-
-        Elements for which the mask is True, do not contribute in the self attention mechanism
-        (its as if they don't exist when computing other elements embeddings).
-        '''
-
-        src_key_padding_mask = torch.zeros(B, T, dtype=torch.bool)
-        for i, length in enumerate(seq_lens):
-            src_key_padding_mask[i, length:] = True
-        return src_key_padding_mask
 
 
 # m = Encoder(256, 8, 512, 2, 6000, True, 'cpu')
