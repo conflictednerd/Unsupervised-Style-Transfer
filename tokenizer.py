@@ -14,7 +14,7 @@ extra_special_tokens = [
     '__extra1',  # -> Use as BOS, EOS, other special tokens
     '__extra2',
     '__extra3',
-    '__extra4',
+    '__extra4',  # -> EOS
 ]
 
 snp_config = {
