@@ -1,10 +1,14 @@
 import json
 import os
 
+from tqdm import tqdm
 import torch
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from tokenizer import Tokenizer
+from snapp_dataset import create_snapp_dataset_from_path, data_collator_snapp
 from torch.utils.tensorboard import SummaryWriter
+
 
 from models.decoder import Decoder
 from models.discriminator import CNNDiscriminator
@@ -43,10 +47,25 @@ class StyleTransferModel():
         if args.load_model:
             self.load()
 
-        # TODO: train/val/test loaders
+        # train/dev/test loaders
+        self.train_dataset = create_snapp_dataset_from_path(
+            "data/snappfood/", "train.csv", self.tokenizer)
+        self.dev_dataset = create_snapp_dataset_from_path(
+            "data/snappfood/", "dev.csv", self.tokenizer)
+        self.test_dataset = create_snapp_dataset_from_path(
+            "data/snappfood/", "test.csv", self.tokenizer)
 
-    def train(self, train_loader, val_loader) -> None:
-        pass
+        self.train_loader = DataLoader(
+            self.train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp)
+        self.dev_loader = DataLoader(
+            self.dev_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp)
+        self.test_loader = DataLoader(
+            self.test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=data_collator_snapp)
+
+    def train(self,) -> None:
+        for epoch in range(self.args.epochs):
+            print(f'[Epoch: {epoch}]')
+            train_dec_loss, train_disc_loss = self.run_epoch()
 
     def save(self,) -> None:
         pass
@@ -55,7 +74,14 @@ class StyleTransferModel():
         pass
 
     def run_epoch(self,):
-        pass
+        for batch in self.train_loader:
+            text_list_input, label_list, \
+            src_key_padding_mask, text_list_output, \
+            tgt_mask, tgt_key_padding_mask, memory_key_padding_mask = batch
+
+            embedded_inputs = self.emb_layer(text_list_input)
+
+
 
     def run_on_batch(self, batch,):
         pass

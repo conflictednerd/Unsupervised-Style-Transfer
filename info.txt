@@ -34,3 +34,6 @@ Dataset + Dataloader: should
 In the decoder, we should also pass a causal mask (don't see future) for the target sequence, and a padding mask for encoder and decoder
 
 Create a supervised test dataset
+
+[x_1, ... x_n] -> enc -> [H, h_1, .. , h_n] -> decoder -> [y_1, ..., y_n]
+[x_1, ... x_n] -> enc -> [h_1, .. , h_n] -> disc -> class label
