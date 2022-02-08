@@ -3,9 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-#TODO: Add instance norm?
+# TODO: Add instance norm?
 
 # Adapted from https://github.com/mberaha/style_text/blob/master/src/discriminator.py
+
+
 class CNNDiscriminator(nn.Module):
     '''
         GAN discriminator is a TextCNN
