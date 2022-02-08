@@ -84,7 +84,7 @@ def data_collator_snapp(batch):
 
     text_list_input = pad_sequence(
         text_list, batch_first=True, padding_value=0)  # inputs for encoder
-    text_list_output = text_list_input.clone()  # labels for decoder # TODO: requires_grad = False?
+    text_list_output = text_list_input.clone()  # labels for decoder
 
     return text_list_input, label_list, src_key_padding_mask, text_list_output, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask
 

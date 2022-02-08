@@ -32,6 +32,7 @@ class Decoder(nn.Module):
             tgt=tgt, memory=memory,
             tgt_key_padding_mask=tgt_key_padding_mask, tgt_mask=tgt_mask,
             memory_key_padding_mask=memory_key_padding_mask)
+        output = self.fc(output)
 
         return output
 
@@ -41,14 +42,15 @@ class Decoder(nn.Module):
 # print(sum(p.numel() for p in enc.parameters() if p.requires_grad))
 
 # x = torch.randint(0, 6000, (16, 256))
-# seq_lens = [100]*16
-# out_enc = enc(emb(x), seq_lens)
+# out_enc = enc(emb(x))
 
 # dec = Decoder(256, 8, 512, 4, 6000, True, 'cpu')
 # print(sum(p.numel() for p in dec.parameters() if p.requires_grad))
-# y = torch.randint(0, 6000, (16, 1))
-# out_dec = dec(emb(y), out_enc)
-# print(out_dec.shape)
+# y = torch.randint(0, 6000, (16, 128))
+# y = emb(y)
+# print(y.shape) # 16x128x256
+# out_dec = dec(y, out_enc)
+# print(out_dec.shape) # 16x128x6000
 
 '''
 <BOS> t_1 -> v_1

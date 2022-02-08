@@ -74,13 +74,16 @@ class Encoder(nn.Module):
             dim_feedforward=dim_feedforward, batch_first=batch_first, device=device),
             num_layers=num_layers)
 
-    def forward(self, x: torch.Tensor, src_key_padding_mask) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, src_key_padding_mask=None) -> torch.Tensor:
         x = self.model(src=x, src_key_padding_mask=src_key_padding_mask)
         return x
 
 
 # m = Encoder(256, 8, 512, 2, 6000, True, 'cpu')
 # emb = EmbeddingLayer(6_000, 256, True)
+# x = torch.tensor([4]*16).unsqueeze(-1)
+# print(x.shape)
+# print(emb(x).shape)
 # print(sum(p.numel() for p in m.parameters() if p.requires_grad))
 # print(sum(p.numel() for p in emb.parameters() if p.requires_grad))
 # # batch of 16 sequences, each with length 256

@@ -1,4 +1,5 @@
 import json
+from json import encoder
 import os
 
 from tqdm import tqdm
@@ -33,7 +34,6 @@ class StyleTransferModel():
         self.disc = CNNDiscriminator(in_channels=1, out_channels=args.disc_channels,
                                      kernel_sizes=args.disc_kernels, hidden_size=args.d_model,
                                      num_classes=args.num_styles).to(self.device)
-        self.hiddenToVocab = torch.nn.Linear(args.d_model, self.tokenizer.vocab_size).to(self.device)
         self.logger = SummaryWriter(self.log_dir)
 
         self.encoder_optim = optim.Adam(
@@ -42,13 +42,12 @@ class StyleTransferModel():
             lr=args.encoder_lr)
         self.decoder_optim = optim.Adam(
             self.decoder.parameters(),
-            lr=args.decoder_lr)  ## Should we not merge encoder and decoder optimizations,
-                                 ## and have anotehr one for encoder and discrimator?
+            lr=args.decoder_lr)
 
         self.disc_optim = optim.Adam(self.disc.parameters(), lr=args.disc_lr)
         
-        self.rec_loss_criterion = torch.nn.CrossEntropyLoss().to(self.device)
-        self.adv_loss_criterion = torch.nn.BCEWithLogitsLoss().to(self.device)
+        self.rec_loss_criterion = torch.nn.CrossEntropyLoss(ignore_index=-100).to(self.device)
+        self.adv_loss_criterion = torch.nn.CrossEntropyLoss(label_smoothing=self.args.label_smoothing).to(self.device)
 
         if args.load_model:
             self.load()
@@ -70,8 +69,9 @@ class StyleTransferModel():
 
     def train(self, ) -> None:
         for epoch in range(self.args.epochs):
-            print(f'[Epoch: {(epoch + 1)}]')
-            train_dec_loss, train_disc_loss = self.run_epoch()
+            print(f'[Epoch: {epoch+1}/{self.args.epochs}]')
+            train_rec_loss, train_disc_loss, train_enc_loss = self.run_epoch()
+            # Log
 
     def save(self, ) -> None:
         pass
@@ -80,25 +80,51 @@ class StyleTransferModel():
         pass
 
     def run_epoch(self, ):
-
-        '''
-
-        I think we must have two optimizers, one for (encoder, decoder), one for (encoder, discriminator)
-
-        '''
+        total_rec_loss, total_disc_loss, total_enc_loss = 0, 0, 0
         for idx, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader)):
-            text_list_input, label_list, \
+            text_list_input, labels, \
             src_key_padding_mask, text_list_output, \
             tgt_mask, tgt_key_padding_mask, memory_key_padding_mask = batch
 
-            ## optimizer.zero_grad()
-            embedded_inputs = self.emb_layer(text_list_input.to(self.device))
-            encoder_output = self.encoder(embedded_inputs, src_key_padding_mask.to(self.device))
-            decoder_output = self.decoder(text_list_output.to(self.device), encoder_output, tgt_mask.to(self.device),
-                                          tgt_key_padding_mask.to(self.device), memory_key_padding_mask.to(self.device))
+            text_list_input = text_list_input.to(self.device)
 
-    def run_on_batch(self, batch, ):
-        pass
+            # reconstruction loss optimization
+            embedded_inputs = self.emb_layer(text_list_input)
+            encoder_output = self.encoder(embedded_inputs, src_key_padding_mask) # bsz x seq_len x d_model
+            encoder_output = torch.roll(encoder_output, shifts=1, dim=1)
+
+            style_emb = self.emb_layer(torch.tensor([self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(self.device)) # TODO: optimize!
+            # shape : bsz, 1, 256
+            encoder_output[:,0,:] = style_emb
+            dec_out = self.decoder(encoder_output, memory_key_padding_mask=src_key_padding_mask, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask) # bsz, seq_len, vocab_size
+            rec_loss = self.rec_loss_criterion(dec_out.flatten(0, 1), text_list_output.flatten())
+            total_rec_loss += rec_loss
+            self.encoder_optim.zero_grad()
+            self.decoder_optim.zero_grad()
+            rec_loss.backward()
+            self.encoder_optim.step()
+            self.decoder_optim.step()
+
+            # adv loss optimization
+            embedded_inputs = self.emb_layer(text_list_input)
+            encoder_output = self.encoder(embedded_inputs, src_key_padding_mask)
+            encoder_output_detached = encoder_output.detach()
+            # add noise to inputs
+            disc_logits = self.disc(encoder_output_detached) # bsz x num_labels
+            self.disc_optim.zero_grad()
+            adv_loss = self.adv_loss_criterion(disc_logits, labels)
+            total_disc_loss += adv_loss
+            adv_loss.backward()
+            self.disc_optim.step()
+
+            disc_logits = self.disc(encoder_output)
+            self.encoder_optim.zero_grad()
+            adv_loss = - self.adv_loss_criterion(disc_logits, labels)
+            total_enc_loss += adv_loss
+            adv_loss.backward()
+            self.encoder_optim.step()
+
+        return total_rec_loss, total_disc_loss, total_enc_loss
 
     def evaluate(self, test_loader, ):
         pass
