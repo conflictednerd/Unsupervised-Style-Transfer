@@ -15,7 +15,7 @@ class Decoder(nn.Module):
 
         self.fc = nn.Linear(d_model, vocab_size)
 
-    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None, tgt_key_padding_mask=None,
+    def forward(self, tgt, memory, tgt_mask=None, tgt_key_padding_mask=None,
                 memory_key_padding_mask=None):
         '''
         (tgt, memory, tgt_mask=None, memory_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None)

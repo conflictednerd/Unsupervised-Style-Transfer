@@ -84,7 +84,7 @@ def data_collator_snapp(batch):
 
     text_list_input = pad_sequence(
         text_list, batch_first=True, padding_value=0)  # inputs for encoder
-    text_list_output = text_list_input.clone() # labels for decoder # TODO: requires_grad = False?
+    text_list_output = text_list_input.clone()  # labels for decoder # TODO: requires_grad = False?
 
     return text_list_input, label_list, src_key_padding_mask, text_list_output, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask
 
@@ -99,10 +99,6 @@ def data_collator_snapp(batch):
 
 # total_step = 0
 
-# for step, (src, label, src_key_padding_mask, tgt, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask) in enumerate(
-#         iter(valid_loader)):
-#     total_step += 1
-#     ## move these to 'cuda' here, not done in the collator
 
 #     ## TODO: what do we want in the training loop?? we can change data_collator later for that (adjusting shifts and stuff)
 
