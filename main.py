@@ -10,9 +10,9 @@ def get_parser():
     parser = argparse.ArgumentParser()
     # General Setting
     parser.add_argument('--exp-name', default='snapp_1',
-                        help='Experiment name')
+                        help='Experiment name. Also used as the name of checkpoint file.')
     parser.add_argument('--load-model', action='store_true', default=False,
-                        help='...')
+                        help='If True, will load model parameters from the file located at models-dir and named as exp-name.pt')
     parser.add_argument('--models-dir', default='./models_dir/',
                         type=str, help='Directory where models are saved to / loaded from')
     parser.add_argument('--data-dir', default='./data_dir/',
@@ -29,10 +29,12 @@ def get_parser():
                         type=float, help='label smoothing ratio used in training the discriminator')
 
     # Dataset Setting
-    parser.add_argument('--batch-size', default=64,
+    parser.add_argument('--batch-size', default=32,
                         type=int, help='batch size')
     parser.add_argument('--tokenizer-name', default='snp_tokenizer',
                         type=str, help='snp_tokenizer or poem_tokenizer')
+    parser.add_argument('--num-workers', default=4,
+                        type=int, help='Number of workers in data loader')
 
     # Encoder
     parser.add_argument('--d_model', default=256,

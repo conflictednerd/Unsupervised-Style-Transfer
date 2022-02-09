@@ -1,5 +1,6 @@
 import json
 import os
+from statistics import mode
 
 import torch
 import torch.optim as optim
@@ -18,6 +19,7 @@ class StyleTransferModel():
     def __init__(self, args) -> None:
         self.args = args
         self.log_dir = args.log_dir + '/' + args.exp_name
+        self.models_dir = args.models_dir
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu')
         self.tokenizer = Tokenizer(
@@ -62,23 +64,43 @@ class StyleTransferModel():
             "data/snappfood/", "test.csv", self.tokenizer)
 
         self.train_loader = DataLoader(
-            self.train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp)
+            self.train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp, num_workers=args.num_workers)
         self.dev_loader = DataLoader(
-            self.dev_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp)
+            self.dev_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp, num_workers=args.num_workers)
         self.test_loader = DataLoader(
-            self.test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=data_collator_snapp)
+            self.test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=data_collator_snapp, num_workers=args.num_workers)
+
+    def save(self, ) -> None:
+        # save emb_layer, encoder, decoder, disc, their optims
+        model_dict = {
+            'emb_layer': self.emb_layer,
+            'encoder': self.encoder,
+            'decoder': self.decoder,
+            'disc': self.disc,
+            'encoder_optim': self.encoder_optim,
+            'decoder_optim': self.decoder_optim,
+            'disc_optim': self.disc_optim,
+        }
+        with open(os.path.join(self.models_dir, self.args.exp_name + '.pt')) as f:
+            torch.save(model_dict, f)
+        print('Model saved')
+
+    def load(self, ) -> None:
+        with open(os.path.join(self.models_dir, self.args.exp_name + '.pt')) as f:
+            model_dict = torch.load(f, map_location=self.device)
+        self.emb_layer = model_dict['emb_layer']
+        self.encoder = model_dict['encoder']
+        self.decoder = model_dict['decoder']
+        self.disc = model_dict['disc']
+        self.encoder_optim = model_dict['encoder_optim']
+        self.decoder_optim = model_dict['decoder_optim']
+        self.disc_optim = model_dict['disc_optim']
 
     def train(self, ) -> None:
         for epoch in range(self.args.epochs):
             print(f'[Epoch: {epoch+1}/{self.args.epochs}]')
             train_rec_loss, train_disc_loss, train_enc_loss = self.run_epoch()
             # Log
-
-    def save(self, ) -> None:
-        pass
-
-    def load(self, ) -> None:
-        pass
 
     def run_epoch(self, ):
         total_rec_loss, total_disc_loss, total_enc_loss = 0, 0, 0
