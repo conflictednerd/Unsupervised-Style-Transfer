@@ -88,6 +88,12 @@ class StyleTransferModel():
                 tgt_mask, tgt_key_padding_mask, memory_key_padding_mask = batch
 
             text_batch_in = text_batch_in.to(self.device)
+            labels = labels.to(self.device)
+            text_batch_out = text_batch_out.to(self.device)
+            src_key_padding_mask = src_key_padding_mask.to(self.device)
+            tgt_mask = tgt_mask.to(self.device)
+            tgt_key_padding_mask = tgt_key_padding_mask.to(self.device)
+            memory_key_padding_mask = memory_key_padding_mask.to(self.device)
 
             # reconstruction loss optimization
             embedded_inputs = self.emb_layer(text_batch_in)
@@ -132,6 +138,7 @@ class StyleTransferModel():
             adv_loss.backward()
             self.encoder_optim.step()
 
+        torch.cuda.empty_cache()
         return total_rec_loss, total_disc_loss, total_enc_loss
 
     def evaluate(self, test_loader, ):
