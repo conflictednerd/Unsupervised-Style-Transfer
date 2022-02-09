@@ -66,8 +66,6 @@ def data_collator_snapp(batch):
 
     src_key_padding_mask = get_padding_mask(texts)
     tgt_mask = get_no_peek_mask(src_key_padding_mask.shape[1])  # T
-    memory_key_padding_mask = src_key_padding_mask.clone()
-    tgt_key_padding_mask = src_key_padding_mask.clone()
     # in any case, we can can use torch.roll(x, 1, 1) to shift right in the rows
 
     '''
@@ -78,9 +76,8 @@ def data_collator_snapp(batch):
 
     text_batch_in = pad_sequence(
         texts, batch_first=True, padding_value=0)  # inputs for encoder
-    text_batch_out = text_batch_in.clone()
 
-    return text_batch_in, labels, src_key_padding_mask, text_batch_out, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask
+    return text_batch_in, labels, src_key_padding_mask, tgt_mask
 
 # snp_tokenizer = Tokenizer(name='snp_tokenizer', load=True, type_='snp', models_dir='./models_dir/',
 #                           data_file='./data/snappfood/train.csv')
