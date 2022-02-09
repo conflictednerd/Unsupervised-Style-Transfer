@@ -48,9 +48,9 @@ class StyleTransferModel():
         self.disc_optim = optim.Adam(self.disc.parameters(), lr=args.disc_lr)
 
         self.rec_loss_criterion = torch.nn.CrossEntropyLoss(
-            ignore_index=0)
+            reduction='mean', ignore_index=0)
         self.adv_loss_criterion = torch.nn.CrossEntropyLoss(
-            label_smoothing=self.args.label_smoothing)
+            reduction='mean', label_smoothing=self.args.label_smoothing)
 
         if args.load_model:
             self.load()
@@ -103,10 +103,12 @@ class StyleTransferModel():
             # Log
 
     def run_epoch(self, ):
-        total_rec_loss, total_disc_loss, total_enc_loss = 0, 0, 0
-        running_rec_loss, running_disc_loss = 0, 0
+        total_rec_loss, total_disc_loss, total_num_samples = 0, 0, 0, 0
+        running_rec_loss, running_disc_loss, running_num_samples, running_disc_correct_preds = 0, 0, 0, 0
         for idx, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader)):
             text_batch, labels, src_key_padding_mask, tgt_mask = batch
+            batch_size = len(labels)
+            running_num_samples += batch_size
             text_batch = text_batch.to(self.device)
             labels = labels.to(self.device)
             src_key_padding_mask = src_key_padding_mask.to(self.device)
@@ -127,14 +129,18 @@ class StyleTransferModel():
                                    tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)  # bsz, seq_len, vocab_size
             rec_loss = self.rec_loss_criterion(
                 dec_out.flatten(0, 1), text_batch.flatten())
-            total_rec_loss += rec_loss
+
             self.encoder_optim.zero_grad()
             self.decoder_optim.zero_grad()
             rec_loss.backward()
             self.encoder_optim.step()
             self.decoder_optim.step()
 
+            # TODO: should we log and report decoding accuracy? excluding the pads is a bit tough:)
+            running_rec_loss += rec_loss.item() * batch_size
+
             # adv loss optimization
+            # disc adv update
             embedded_inputs = self.emb_layer(text_batch)
             encoder_output = self.encoder(
                 embedded_inputs, src_key_padding_mask)
@@ -142,21 +148,42 @@ class StyleTransferModel():
             # add noise to inputs
             disc_logits = self.disc(
                 encoder_output_detached)  # bsz x num_labels
+
             self.disc_optim.zero_grad()
             adv_loss = self.adv_loss_criterion(disc_logits, labels)
-            total_disc_loss += adv_loss
             adv_loss.backward()
             self.disc_optim.step()
 
+            running_disc_loss += adv_loss.item() * batch_size
+            disc_preds = torch.argmax(disc_logits, dim=-1)
+            running_disc_correct_preds += torch.count_nonzero(
+                disc_preds == labels)
+
+            # encoder adv update
             disc_logits = self.disc(encoder_output)
             self.encoder_optim.zero_grad()
             adv_loss = - self.adv_loss_criterion(disc_logits, labels)
-            total_enc_loss += adv_loss
             adv_loss.backward()
             self.encoder_optim.step()
 
-        torch.cuda.empty_cache()
-        return total_rec_loss, total_disc_loss, total_enc_loss
+            # logging every 100 minibatch
+            if (idx+1) % 100 == 0:
+                total_num_samples += running_num_samples
+                total_rec_loss += running_rec_loss
+                total_disc_loss += running_disc_loss
+                disc_acc = running_disc_correct_preds / running_num_samples
+                self.logger.add_scalar(
+                    'Train/Loss/reconstruction', running_rec_loss/running_num_samples)
+                self.logger.add_scalar(
+                    'Train/Loss/discriminator', running_disc_loss/running_num_samples)
+                self.logger.add_scalar(
+                    'Train/Accuracy/discriminator', disc_acc)
+                running_num_samples, running_rec_loss, running_disc_loss, running_disc_correct_preds = 0, 0, 0, 0
+
+            if (idx+1) % 400 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+        return total_rec_loss, total_disc_loss
 
     def evaluate(self, test_loader, ):
         pass
