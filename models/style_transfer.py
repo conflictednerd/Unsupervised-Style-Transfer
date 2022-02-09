@@ -81,13 +81,13 @@ class StyleTransferModel():
             'decoder_optim': self.decoder_optim,
             'disc_optim': self.disc_optim,
         }
-        with open(os.path.join(self.models_dir, self.args.exp_name + '.pt')) as f:
-            torch.save(model_dict, f)
+        torch.save(model_dict, os.path.join(
+            self.models_dir, self.args.exp_name + '.pt'))
         print('Model saved')
 
     def load(self, ) -> None:
-        with open(os.path.join(self.models_dir, self.args.exp_name + '.pt')) as f:
-            model_dict = torch.load(f, map_location=self.device)
+        model_dict = torch.load(os.path.join(
+            self.models_dir, self.args.exp_name + '.pt'), map_location=self.device)
         self.emb_layer = model_dict['emb_layer']
         self.encoder = model_dict['encoder']
         self.decoder = model_dict['decoder']
@@ -99,13 +99,13 @@ class StyleTransferModel():
     def train(self, ) -> None:
         for epoch in range(self.args.epochs):
             print(f'[Epoch: {epoch+1}/{self.args.epochs}]')
-            train_rec_loss, train_disc_loss, train_enc_loss = self.run_epoch(
+            train_rec_loss, train_disc_loss = self.run_epoch(
                 epoch)
             self.save()
             # TODO: run evaluation on dev set
 
     def run_epoch(self, epoch):
-        total_rec_loss, total_disc_loss, total_num_samples = 0, 0, 0, 0
+        total_rec_loss, total_disc_loss, total_num_samples = 0, 0, 0
         running_rec_loss, running_disc_loss, running_num_samples, running_disc_correct_preds = 0, 0, 0, 0
         for idx, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader)):
             text_batch, labels, src_key_padding_mask, tgt_mask = batch
@@ -142,7 +142,7 @@ class StyleTransferModel():
             running_rec_loss += rec_loss.item() * batch_size
 
             # adv loss optimization
-            if epoch > 3:
+            if epoch > 2:
                 # disc adv update
                 embedded_inputs = self.emb_layer(text_batch)
                 encoder_output = self.encoder(
@@ -178,15 +178,17 @@ class StyleTransferModel():
                 total_rec_loss += running_rec_loss
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
+                global_step = epoch * \
+                    (len(self.train_loader)//100) + (idx+1)//100
                 self.logger.add_scalar(
-                    'Train/Loss/reconstruction', running_rec_loss/running_num_samples)
+                    'Train/Loss/reconstruction', running_rec_loss/running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
-                    'Train/Loss/discriminator', running_disc_loss/running_num_samples)
+                    'Train/Loss/discriminator', running_disc_loss/running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
-                    'Train/Accuracy/discriminator', disc_acc)
+                    'Train/Accuracy/discriminator', disc_acc, global_step=global_step)
                 running_num_samples, running_rec_loss, running_disc_loss, running_disc_correct_preds = 0, 0, 0, 0
 
-            if (idx+1) % 400 == 0 and torch.cuda.is_available():
+            if (idx+1) % 500 == 0 and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
         return total_rec_loss, total_disc_loss

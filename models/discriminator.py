@@ -48,7 +48,7 @@ class CNNDiscriminator(nn.Module):
         '''
         x = x.unsqueeze(1)  # unsqueeze to add channel dimension
         x = [
-            F.leaky_relu(conv(x), negative_slope=0.05).squeeze(3)
+            F.leaky_relu(conv(x)).squeeze(3)
             for conv in self.convs]  # x[i].shape = [B x out_channels x T-kernel_sizes[i]]
         # perform max pooling over the entire sequence
         x = [

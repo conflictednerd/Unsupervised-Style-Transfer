@@ -70,7 +70,7 @@ class Encoder(nn.Module):
         self.d_model = d_model
         self.model = nn.TransformerEncoder(encoder_layer=nn.TransformerEncoderLayer(
             d_model=d_model, nhead=nhead, dropout=0.3,
-            activation=lambda x: F.leaky_relu(x, negative_slope=0.05),
+            activation=F.leaky_relu, #TODO: lambda can't be pickled
             dim_feedforward=dim_feedforward, batch_first=batch_first, device=device),
             num_layers=num_layers)
 
