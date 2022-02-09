@@ -3,9 +3,7 @@ from pprint import pprint
 from typing import List
 
 from models.decoder import Decoder
-
-x = Decoder()
-print('Done')
+from models.style_transfer import StyleTransferModel
 
 
 def get_parser():
@@ -34,7 +32,7 @@ def get_parser():
     parser.add_argument('--batch-size', default=64,
                         type=int, help='batch size')
     parser.add_argument('--tokenizer-name', default='snp_tokenizer',
-                        type=int, help='snp_tokenizer or poem_tokenizer')
+                        type=str, help='snp_tokenizer or poem_tokenizer')
 
     # Encoder
     parser.add_argument('--d_model', default=256,
@@ -73,3 +71,5 @@ if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
     pprint(f'Arguments are: {vars(args)}')  # For debugging
+    model = StyleTransferModel(args)
+    model.train()

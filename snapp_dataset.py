@@ -27,7 +27,6 @@ def get_snapp_dataset(data_df, tokenizer):
 
 def create_snapp_dataset_from_path(path, filename, tokenizer):
     data = pd.read_csv(path + filename)
-    print(data.head())
     return get_snapp_dataset(data, tokenizer)
 
 
@@ -39,9 +38,9 @@ def get_no_peek_mask(length):
     return mask
 
 
-def get_padding_mask(batch):
-    B = len(batch)
-    seq_lens = [len(d) for d in batch]
+def get_padding_mask(txt_batch):
+    B = len(txt_batch)
+    seq_lens = [len(d) for d in txt_batch]
     T = max(seq_lens)
 
     padding_mask = torch.zeros(B, T, dtype=torch.bool)
@@ -52,14 +51,20 @@ def get_padding_mask(batch):
 
 def data_collator_snapp(batch):
     '''
-
     :param batch: a batch of texts (already tokenized) and their respective labels
     :return: adjusted inputs for encoder and decoder, src_key_padding_mask, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask
     '''
     EOS_token_id = 5
+    '''
+    NOTE for ourselves: batch is a list of dicts. dict[i] is a dictionary with a "text" and a "label" field
+    '''
 
-    # src_key_padding_mask
-    src_key_padding_mask = get_padding_mask(batch)
+    texts = [torch.tensor(d['text'] + [EOS_token_id],
+                          dtype=torch.int64) for d in batch]
+    labels = [d['label'] for d in batch]
+    labels = torch.tensor(labels, dtype=torch.int64)
+
+    src_key_padding_mask = get_padding_mask(texts)
     tgt_mask = get_no_peek_mask(src_key_padding_mask.shape[1])  # T
     memory_key_padding_mask = src_key_padding_mask.clone()
     tgt_key_padding_mask = src_key_padding_mask.clone()
@@ -71,22 +76,11 @@ def data_collator_snapp(batch):
     [a,b,c,EOS,pad pad] -> [BOS, a,b,c,EOS,pad]
     '''
 
-    label_list, text_list = [], []
-    for dictionary in batch:
-        _text = dictionary['text']
-        _text += [EOS_token_id]  # EOS
-        _label = dictionary['label']
-        label_list.append(_label)
-        processed_text = torch.tensor((_text), dtype=torch.int64)
-        text_list.append(processed_text)
+    text_batch_in = pad_sequence(
+        texts, batch_first=True, padding_value=0)  # inputs for encoder
+    text_batch_out = text_batch_in.clone()
 
-    label_list = torch.tensor(label_list, dtype=torch.int64)
-
-    text_list_input = pad_sequence(
-        text_list, batch_first=True, padding_value=0)  # inputs for encoder
-    text_list_output = text_list_input.clone()  # labels for decoder
-
-    return text_list_input, label_list, src_key_padding_mask, text_list_output, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask
+    return text_batch_in, labels, src_key_padding_mask, text_batch_out, tgt_mask, tgt_key_padding_mask, memory_key_padding_mask
 
 # snp_tokenizer = Tokenizer(name='snp_tokenizer', load=True, type_='snp', models_dir='./models_dir/',
 #                           data_file='./data/snappfood/train.csv')

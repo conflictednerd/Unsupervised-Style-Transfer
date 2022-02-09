@@ -1,6 +1,5 @@
 import json
 import os
-from json import encoder
 
 import torch
 import torch.optim as optim
@@ -47,9 +46,9 @@ class StyleTransferModel():
         self.disc_optim = optim.Adam(self.disc.parameters(), lr=args.disc_lr)
 
         self.rec_loss_criterion = torch.nn.CrossEntropyLoss(
-            ignore_index=0).to(self.device)
+            ignore_index=0)
         self.adv_loss_criterion = torch.nn.CrossEntropyLoss(
-            label_smoothing=self.args.label_smoothing).to(self.device)
+            label_smoothing=self.args.label_smoothing)
 
         if args.load_model:
             self.load()
@@ -84,26 +83,27 @@ class StyleTransferModel():
     def run_epoch(self, ):
         total_rec_loss, total_disc_loss, total_enc_loss = 0, 0, 0
         for idx, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader)):
-            text_list_input, labels, \
-                src_key_padding_mask, text_list_output, \
+            text_batch_in, labels, \
+                src_key_padding_mask, text_batch_out, \
                 tgt_mask, tgt_key_padding_mask, memory_key_padding_mask = batch
 
-            text_list_input = text_list_input.to(self.device)
+            text_batch_in = text_batch_in.to(self.device)
 
             # reconstruction loss optimization
-            embedded_inputs = self.emb_layer(text_list_input)
+            embedded_inputs = self.emb_layer(text_batch_in)
             encoder_output = self.encoder(
                 embedded_inputs, src_key_padding_mask)  # bsz x seq_len x d_model
-            encoder_output = torch.roll(encoder_output, shifts=1, dim=1)
+            encoder_output = torch.roll(encoder_output, shifts=1, dims=1)
 
             style_emb = self.emb_layer(torch.tensor(
                 [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(self.device))  # TODO: optimize!
             # shape : bsz, 1, 256
+            style_emb = style_emb.squeeze(1)
             encoder_output[:, 0, :] = style_emb
-            dec_out = self.decoder(encoder_output, memory_key_padding_mask=src_key_padding_mask,
+            dec_out = self.decoder(tgt=embedded_inputs, memory=encoder_output, memory_key_padding_mask=src_key_padding_mask,
                                    tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)  # bsz, seq_len, vocab_size
             rec_loss = self.rec_loss_criterion(
-                dec_out.flatten(0, 1), text_list_output.flatten())
+                dec_out.flatten(0, 1), text_batch_out.flatten())
             total_rec_loss += rec_loss
             self.encoder_optim.zero_grad()
             self.decoder_optim.zero_grad()
@@ -112,7 +112,7 @@ class StyleTransferModel():
             self.decoder_optim.step()
 
             # adv loss optimization
-            embedded_inputs = self.emb_layer(text_list_input)
+            embedded_inputs = self.emb_layer(text_batch_in)
             encoder_output = self.encoder(
                 embedded_inputs, src_key_padding_mask)
             encoder_output_detached = encoder_output.detach()

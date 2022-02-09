@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from encoder import EmbeddingLayer, Encoder  # to be commented
+from models.encoder import EmbeddingLayer, Encoder  # to be commented
 
 
 class Decoder(nn.Module):
