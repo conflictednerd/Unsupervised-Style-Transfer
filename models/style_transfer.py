@@ -99,10 +99,12 @@ class StyleTransferModel():
     def train(self, ) -> None:
         for epoch in range(self.args.epochs):
             print(f'[Epoch: {epoch+1}/{self.args.epochs}]')
-            train_rec_loss, train_disc_loss, train_enc_loss = self.run_epoch()
-            # Log
+            train_rec_loss, train_disc_loss, train_enc_loss = self.run_epoch(
+                epoch)
+            self.save()
+            # TODO: run evaluation on dev set
 
-    def run_epoch(self, ):
+    def run_epoch(self, epoch):
         total_rec_loss, total_disc_loss, total_num_samples = 0, 0, 0, 0
         running_rec_loss, running_disc_loss, running_num_samples, running_disc_correct_preds = 0, 0, 0, 0
         for idx, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader)):
@@ -140,31 +142,35 @@ class StyleTransferModel():
             running_rec_loss += rec_loss.item() * batch_size
 
             # adv loss optimization
-            # disc adv update
-            embedded_inputs = self.emb_layer(text_batch)
-            encoder_output = self.encoder(
-                embedded_inputs, src_key_padding_mask)
-            encoder_output_detached = encoder_output.detach()
-            # add noise to inputs
-            disc_logits = self.disc(
-                encoder_output_detached)  # bsz x num_labels
+            if epoch > 3:
+                # disc adv update
+                embedded_inputs = self.emb_layer(text_batch)
+                encoder_output = self.encoder(
+                    embedded_inputs, src_key_padding_mask)
+                encoder_output_detached = encoder_output.detach()
+                # TODO add noise to inputs
+                disc_logits = self.disc(
+                    encoder_output_detached)  # bsz x num_labels
 
-            self.disc_optim.zero_grad()
-            adv_loss = self.adv_loss_criterion(disc_logits, labels)
-            adv_loss.backward()
-            self.disc_optim.step()
+                self.disc_optim.zero_grad()
+                adv_loss = self.args.LAMBDA * \
+                    self.adv_loss_criterion(disc_logits, labels)
+                adv_loss.backward()
+                self.disc_optim.step()
 
-            running_disc_loss += adv_loss.item() * batch_size
-            disc_preds = torch.argmax(disc_logits, dim=-1)
-            running_disc_correct_preds += torch.count_nonzero(
-                disc_preds == labels)
+                running_disc_loss += adv_loss.item() * batch_size
+                disc_preds = torch.argmax(disc_logits, dim=-1)
+                running_disc_correct_preds += torch.count_nonzero(
+                    disc_preds == labels)
 
-            # encoder adv update
-            disc_logits = self.disc(encoder_output)
-            self.encoder_optim.zero_grad()
-            adv_loss = - self.adv_loss_criterion(disc_logits, labels)
-            adv_loss.backward()
-            self.encoder_optim.step()
+                # encoder adv update
+                if (idx+1) % 5 == 0:
+                    disc_logits = self.disc(encoder_output)
+                    self.encoder_optim.zero_grad()
+                    adv_loss = -self.args.LAMBDA * \
+                        self.adv_loss_criterion(disc_logits, labels)
+                    adv_loss.backward()
+                    self.encoder_optim.step()
 
             # logging every 100 minibatch
             if (idx+1) % 100 == 0:

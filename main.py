@@ -27,6 +27,8 @@ def get_parser():
                         type=int, help='batch size')
     parser.add_argument('--label-smoothing', default='0.2',
                         type=float, help='label smoothing ratio used in training the discriminator')
+    parser.add_argument('--LAMBDA', default=10.0,
+                        type=float, help='coefficient of adversarial loss')
 
     # Dataset Setting
     parser.add_argument('--batch-size', default=32,
