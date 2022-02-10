@@ -14,7 +14,7 @@ class CNNDiscriminator(nn.Module):
     '''
 
     def __init__(self, in_channels: int, out_channels: int, kernel_sizes: List[int],
-                 hidden_size: int, num_classes: int, dropout: float = 0.3) -> None:
+                 hidden_size: int, num_classes: int, dropout: float = 0.2) -> None:
         '''
         Args:
         in_channels -- the input feature maps. Should be only one for text.
@@ -52,7 +52,7 @@ class CNNDiscriminator(nn.Module):
             for conv in self.convs]  # x[i].shape = [B x out_channels x T-kernel_sizes[i]]
         # perform max pooling over the entire sequence
         x = [
-            F.avg_pool1d(i, i.size(2)).squeeze(2) for i in x]  # x[i].shape = [B x out_channels]
+            F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]  # x[i].shape = [B x out_channels]
 
         # x.shape = [B x (out_channels * len (kernel_sizes) )]
         x = torch.cat(x, 1)

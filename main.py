@@ -35,11 +35,11 @@ def get_parser():
                         type=int, help='batch size')
     parser.add_argument('--tokenizer-name', default='snp_tokenizer',
                         type=str, help='snp_tokenizer or poem_tokenizer')
-    parser.add_argument('--num-workers', default=4,
+    parser.add_argument('--num-workers', default=2,
                         type=int, help='Number of workers in data loader')
 
     # Encoder
-    parser.add_argument('--d_model', default=256,
+    parser.add_argument('--d_model', default=128,
                         type=int, help='Embedding dimension (same value is used in encoder, decoder')
     parser.add_argument('--encoder-nhead', default=8,
                         type=int, help='Number of attention heads in the encoder')

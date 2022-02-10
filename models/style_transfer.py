@@ -73,6 +73,12 @@ class StyleTransferModel():
             self.test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=data_collator_snapp,
             num_workers=args.num_workers)
 
+        print(f'''Embedding layer parameters: {sum(p.numel() for p in self.emb_layer.parameters() if p.requires_grad)}
+                Encoder parameters: {sum(p.numel() for p in self.encoder.parameters() if p.requires_grad)}
+                Decoder parameters: {sum(p.numel() for p in self.decoder.parameters() if p.requires_grad)}
+                Discriminator parameters: {sum(p.numel() for p in self.disc.parameters() if p.requires_grad)}
+                Total number of parameters: {sum(p.numel() for p in list(self.emb_layer.parameters()) + list(self.encoder.parameters()) + list(self.decoder.parameters()) + list(self.disc.parameters()) if p.requires_grad)}''')
+
     def save(self, ) -> None:
         # save emb_layer, encoder, decoder, disc, their optims
         model_dict = {
@@ -104,6 +110,8 @@ class StyleTransferModel():
             print(f'[Epoch: {epoch+1}/{self.args.epochs}]')
             train_rec_loss, train_disc_loss = self.run_epoch(
                 epoch)
+            print(
+                f'Reconstruction loss: {train_rec_loss.item():.3f}, Discriminator loss: {train_disc_loss.item():.3f}')
             self.save()
             # TODO: run evaluation on dev set
 
@@ -112,12 +120,13 @@ class StyleTransferModel():
         running_rec_loss, running_disc_loss, running_num_samples, running_disc_correct_preds = 0, 0, 0, 0
         for idx, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader)):
             text_batch, labels, src_key_padding_mask, tgt_mask = batch
-            batch_size = len(labels)
-            running_num_samples += batch_size
             text_batch = text_batch.to(self.device)
             labels = labels.to(self.device)
             src_key_padding_mask = src_key_padding_mask.to(self.device)
             tgt_mask = tgt_mask.to(self.device)
+
+            batch_size = len(labels)
+            running_num_samples += batch_size
 
             # reconstruction loss optimization
             embedded_inputs = self.emb_layer(text_batch)
@@ -160,7 +169,7 @@ class StyleTransferModel():
 
                 self.disc_optim.zero_grad()
                 adv_loss = self.args.LAMBDA * \
-                           self.adv_loss_criterion(disc_logits, labels)
+                    self.adv_loss_criterion(disc_logits, labels)
                 adv_loss.backward()
                 self.disc_optim.step()
 
@@ -174,7 +183,7 @@ class StyleTransferModel():
                     disc_logits = self.disc(encoder_output)
                     self.encoder_optim.zero_grad()
                     adv_loss = -self.args.LAMBDA * \
-                               self.adv_loss_criterion(disc_logits, labels)
+                        self.adv_loss_criterion(disc_logits, labels)
                     adv_loss.backward()
                     self.encoder_optim.step()
 
@@ -185,7 +194,7 @@ class StyleTransferModel():
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
                 global_step = epoch * \
-                              (len(self.train_loader) // 100) + (idx + 1) // 100
+                    (len(self.train_loader) // 100) + (idx + 1) // 100
                 self.logger.add_scalar(
                     'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
@@ -208,11 +217,13 @@ class StyleTransferModel():
         one of memory and input_text should be given though
         '''
         assert not (input_ is None and memory is None)
-        EOS_token_id = 5  ## for snapp dataset
+        EOS_token_id = 5  # for snapp dataset
 
         if input_ is not None:
-            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
-            src_padding_mask = torch.tensor([False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
+            input_text = torch.tensor(
+                input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
+            src_padding_mask = torch.tensor(
+                [False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
             embedded_inputs = self.emb_layer(input_text)
             memory = self.encoder(
                 embedded_inputs, src_padding_mask)
@@ -224,13 +235,15 @@ class StyleTransferModel():
                 self.device))
 
             while len(generated_output) < max_len:
-                dec_out = self.decoder(tgt=tgt_, memory=memory)  ## should we use 'decoder_output'? let's talk about it
+                # should we use 'decoder_output'? let's talk about it
+                dec_out = self.decoder(tgt=tgt_, memory=memory)
 
-                next_vocab = torch.argmax(dec_out[:, -1, :])  ##batch size is 1
+                next_vocab = torch.argmax(dec_out[:, -1, :])  # batch size is 1
                 generated_output.append(next_vocab)
                 if next_vocab == EOS_token_id:
                     break
-                next_word_emb = self.emb_layer(torch.tensor([next_vocab]).unsqueeze(0).to(self.device))
+                next_word_emb = self.emb_layer(torch.tensor(
+                    [next_vocab]).unsqueeze(0).to(self.device))
                 tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(self.device)
 
         return generated_output
@@ -239,8 +252,10 @@ class StyleTransferModel():
         dev_text = self.dev_dataset['text'][0]
         dev_label = self.dev_dataset['label'][0]
         print(self.dev_dataset[0])
-        output0 = self.generate_beam(desired_label=dev_label, input_=self.dev_dataset[0])
-        output1 = self.generate_beam(desired_label=1 - dev_label, input_=self.dev_dataset[0])
+        output0 = self.generate_beam(
+            desired_label=dev_label, input_=self.dev_dataset[0])
+        output1 = self.generate_beam(
+            desired_label=1 - dev_label, input_=self.dev_dataset[0])
         print(output0)
         print(output1)
         print(len(output0[0][0]))
@@ -249,11 +264,13 @@ class StyleTransferModel():
 
     def generate_beam(self, desired_label, input_=None, memory=None, K=5, max_len=128):
         assert not (input_ is None and memory is None)
-        EOS_token_id = 5  ## for snapp dataset
+        EOS_token_id = 5  # for snapp dataset
 
         if input_ is not None:
-            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
-            src_padding_mask = torch.tensor([False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
+            input_text = torch.tensor(
+                input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
+            src_padding_mask = torch.tensor(
+                [False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
             embedded_inputs = self.emb_layer(input_text)
             memory = self.encoder(
                 embedded_inputs, src_padding_mask)
@@ -261,17 +278,20 @@ class StyleTransferModel():
         def next_most_probables(tgt, memory):
             m = torch.nn.Softmax()
             with torch.no_grad():
-                dec_out = self.decoder(tgt=tgt, memory=memory)  ## should we use 'decoder_output'? let's talk about it
+                # should we use 'decoder_output'? let's talk about it
+                dec_out = self.decoder(tgt=tgt, memory=memory)
                 dec_out = m(dec_out[:, -1, :])
                 # print(dec_out.size())
                 next_vocabs = torch.topk(dec_out, K)
                 # print((next_vocabs.indices[0]))
                 outputs = []
                 for voc in range(K):
-                    outputs.append([next_vocabs.indices[0][voc], next_vocabs.values[0][voc]])
+                    outputs.append([next_vocabs.indices[0][voc],
+                                   next_vocabs.values[0][voc]])
                 return outputs
 
-        target_sequences = [[list([self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]), 0.0] * K]
+        target_sequences = [
+            [list([self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]), 0.0] * K]
 
         max_len_in_seq = 1
         while max_len_in_seq < max_len:
@@ -280,17 +300,18 @@ class StyleTransferModel():
                 target_list = target[0]
                 target_score = target[1]
 
-                if target_list[-1] == EOS_token_id:  ## how to deal with EOS?
+                if target_list[-1] == EOS_token_id:  # how to deal with EOS?
                     continue
 
                 tgt_ = self.emb_layer(torch.tensor(target_list).unsqueeze(0).to(
                     self.device))
 
                 next_candidates = next_most_probables(tgt_, memory)
-                ## mult of probabilities is the sum of their logs
+                # mult of probabilities is the sum of their logs
                 for candidate in next_candidates:
                     # print(candidate[0].tolist())
-                    new_targets.append([target_list + [candidate[0].tolist()], target_score - np.log(candidate[1].tolist())])
+                    new_targets.append(
+                        [target_list + [candidate[0].tolist()], target_score - np.log(candidate[1].tolist())])
 
             target_sequences = sorted(new_targets, key=lambda tup: tup[1])[:K]
             all_ended = True
