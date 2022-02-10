@@ -125,67 +125,44 @@ class StyleTransferModel():
             src_key_padding_mask = src_key_padding_mask.to(self.device)
             tgt_mask = tgt_mask.to(self.device)
 
-            batch_size = len(labels)
-            running_num_samples += batch_size
-
-            # reconstruction loss optimization
+            self.train_mode()
             embedded_inputs = self.emb_layer(text_batch)
             encoder_output = self.encoder(
-                embedded_inputs, src_key_padding_mask)  # bsz x seq_len x d_model
+                embedded_inputs, src_key_padding_mask)
+            encoder_output_detached = encoder_output.detach()  # TODO: add noise
             decoder_tgt = torch.roll(encoder_output, shifts=1, dims=1)
-
-            style_emb = self.emb_layer(torch.tensor(
+            style_embedding = self.emb_layer(torch.tensor(
                 [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
-                self.device))  # TODO: optimize!
-            # shape : bsz, 1, 256
-            style_emb = style_emb.squeeze(1)
-            decoder_tgt[:, 0, :] = style_emb
-            dec_out = self.decoder(tgt=decoder_tgt, memory=encoder_output,
-                                   memory_key_padding_mask=src_key_padding_mask,
-                                   tgt_mask=tgt_mask,
-                                   tgt_key_padding_mask=src_key_padding_mask)  # bsz, seq_len, vocab_size
+                self.device))
+            decoder_tgt[:, 0, :] = style_embedding.squeeze(1)
+            decoder_output = self.decoder(tgt=decoder_tgt, memory=encoder_output,
+                                          memory_key_padding_mask=src_key_padding_mask,
+                                          tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)
             rec_loss = self.rec_loss_criterion(
-                dec_out.flatten(0, 1), text_batch.flatten())
+                decoder_output.flatten(0, 1), text_batch.flatten)
+            disc_logits = self.disc(encoder_output_detached)
+            disc_loss = self.adv_loss_criterion(disc_logits, labels)
+            enc_loss = -self.adv_loss_criterion(self.disc(encoder_output), labels)
 
+            self.disc_optim.zero_grad()
             self.encoder_optim.zero_grad()
             self.decoder_optim.zero_grad()
-            rec_loss.backward()
-            self.encoder_optim.step()
-            self.decoder_optim.step()
-
-            # TODO: should we log and report decoding accuracy? excluding the pads is a bit tough:)
-            running_rec_loss += rec_loss.item() * batch_size
-
-            # adv loss optimization
-            if epoch > 2:
-                # disc adv update
-                embedded_inputs = self.emb_layer(text_batch)
-                encoder_output = self.encoder(
-                    embedded_inputs, src_key_padding_mask)
-                encoder_output_detached = encoder_output.detach()
-                # TODO add noise to inputs
-                disc_logits = self.disc(
-                    encoder_output_detached)  # bsz x num_labels
-
-                self.disc_optim.zero_grad()
-                adv_loss = self.args.LAMBDA * \
-                    self.adv_loss_criterion(disc_logits, labels)
-                adv_loss.backward()
+            if self.update_disc(epoch, idx):
+                disc_loss.backward()
                 self.disc_optim.step()
+            if self.update_ae(epoch, idx):
+                loss = rec_loss + self.args.lambda_gan * enc_loss if self.update_disc(epoch, idx) else rec_loss
+                loss.backward()
+                self.decoder_optim.step()
+                self.encoder_optim.step()
 
-                running_disc_loss += adv_loss.item() * batch_size
-                disc_preds = torch.argmax(disc_logits, dim=-1)
-                running_disc_correct_preds += torch.count_nonzero(
-                    disc_preds == labels)
-
-                # encoder adv update
-                if (idx + 1) % 5 == 0:
-                    disc_logits = self.disc(encoder_output)
-                    self.encoder_optim.zero_grad()
-                    adv_loss = -self.args.LAMBDA * \
-                        self.adv_loss_criterion(disc_logits, labels)
-                    adv_loss.backward()
-                    self.encoder_optim.step()
+            # bookkeeping stats
+            batch_size = len(labels)
+            running_num_samples += batch_size
+            running_rec_loss += rec_loss.item() * batch_size
+            running_disc_loss += disc_loss.item() * batch_size
+            running_disc_correct_preds += torch.count_nonzero(
+                torch.argmax(disc_logits, dim=-1) == labels)
 
             # logging every 100 minibatch
             if (idx + 1) % 100 == 0:
@@ -193,8 +170,7 @@ class StyleTransferModel():
                 total_rec_loss += running_rec_loss
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
-                global_step = epoch * \
-                    (len(self.train_loader) // 100) + (idx + 1) // 100
+                global_step = epoch * (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
                 self.logger.add_scalar(
                     'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
@@ -202,6 +178,9 @@ class StyleTransferModel():
                 self.logger.add_scalar(
                     'Train/Accuracy/discriminator', disc_acc, global_step=global_step)
                 running_num_samples, running_rec_loss, running_disc_loss, running_disc_correct_preds = 0, 0, 0, 0
+
+            if (idx + 1) % 450 == 0:
+                self.evaluate()
 
             if (idx + 1) % 500 == 0 and torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -212,13 +191,13 @@ class StyleTransferModel():
     # mask = mask.float().masked_fill(mask == 0, float(
     #     '-inf')).masked_fill(mask == 1, float(0.0))
 
-    def generate_greedy(self, desired_label, input_=None, memory=None, max_len=128):
+    def generate_greedy(self, desired_label, input_=None, memory=None, memory_key_padding_mask=None, max_len=128):
         '''
         one of memory and input_text should be given though
         '''
         assert not (input_ is None and memory is None)
         EOS_token_id = 5  # for snapp dataset
-
+        self.eval_mode()
         if input_ is not None:
             input_text = torch.tensor(
                 input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
@@ -236,7 +215,7 @@ class StyleTransferModel():
 
             while len(generated_output) < max_len:
                 # should we use 'decoder_output'? let's talk about it
-                dec_out = self.decoder(tgt=tgt_, memory=memory)
+                dec_out = self.decoder(tgt=tgt_, memory=memory, memory_key_padding_mask=memory_key_padding_mask.to(self.device))
 
                 next_vocab = torch.argmax(dec_out[:, -1, :])  # batch size is 1
                 generated_output.append(next_vocab)
@@ -325,9 +304,45 @@ class StyleTransferModel():
 
         return target_sequences
 
-    def evaluate(self, test_loader, ):
-        pass
+    def evaluate(self, ):
+        n = 2
+        self.eval_mode()
+        text_batch, labels, src_key_padding_mask, tgt_mask = next(iter(self.dev_loader))
+        memories = self.encoder(self.emb_layer(text_batch[:2*n].to(self.device)), src_key_padding_mask[:2*n].to(self.device))
+        for i in range(2*n):
+            memory = memories[i].unsqueeze(0)
+            desired_label = labels[i] if i < n else (labels[i] + 1) % self.args.num_styles
+            result = self.generate_greedy(desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
+            print(f'''Original sentence with label {labels[i]}:
+            {self.tokenizer.inv_transform([text_batch[i]])}
+            Generated sentence with label {desired_label}:
+            {self.tokenizer.inv_transform([result])[0]}
+            ''')
 
     def log(self, ):
         with open(os.path.join('./' + self.log_dir, 'config.json'), 'w') as f:
             json.dump(vars(self.args), f)
+
+    def update_disc(self, epoch: int, batch_idx: int) -> bool:
+        '''
+        For the first copule of epochs, the discriminator will not be updated
+        '''
+        return epoch >= self.args.ae_pretraining_epochs
+
+    def update_ae(self, epoch: int, batch_idx: int) -> bool:
+        '''
+        For the first couple of epochs, update the ae. After that, update only on some batches
+        '''
+        return (epoch < self.args.ae_pretraining_epochs) or (batch_idx % 5 == 0)
+
+    def train_mode(self, ) -> None:
+        self.emb_layer.train()
+        self.encoder.train()
+        self.decoder.train()
+        self.disc.train()
+
+    def eval_mode(self, ) -> None:
+        self.emb_layer.eval()
+        self.encoder.eval()
+        self.decoder.eval()
+        self.disc.eval()

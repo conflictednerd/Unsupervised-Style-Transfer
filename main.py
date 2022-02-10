@@ -27,8 +27,10 @@ def get_parser():
                         type=int, help='batch size')
     parser.add_argument('--label-smoothing', default='0.2',
                         type=float, help='label smoothing ratio used in training the discriminator')
-    parser.add_argument('--LAMBDA', default=10.0,
+    parser.add_argument('--lambda-gan', default=50.0,
                         type=float, help='coefficient of adversarial loss')
+    parser.add_argument('--ae-pretraining-epochs', default=3,
+                        type=int, help='The number of epochs that the autoencoder part will train without adversarial loss')
 
     # Dataset Setting
     parser.add_argument('--batch-size', default=32,
