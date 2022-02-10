@@ -211,21 +211,11 @@ class StyleTransferModel():
         EOS_token_id = 5  ## for snapp dataset
 
         if input_ is not None:
-            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64)
-            src_padding_mask = torch.tensor([False] * (len(input_text) + 1))
+            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
+            src_padding_mask = torch.tensor([False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
             embedded_inputs = self.emb_layer(input_text)
             memory = self.encoder(
                 embedded_inputs, src_padding_mask)
-
-        # encoder_output = torch.roll(memory, shifts=1, dims=1)
-        #
-        # style_emb = self.emb_layer(torch.tensor(
-        #     [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
-        #     self.device))
-        #
-        # style_emb = style_emb.squeeze(1)
-        # encoder_output[:, 0, :] = style_emb  ## why are we putting style embedding in encoder output again?? what about
-        # ## the decoder?
 
         generated_output = []
         with torch.no_grad():
@@ -240,18 +230,30 @@ class StyleTransferModel():
                 generated_output.append(next_vocab)
                 if next_vocab == EOS_token_id:
                     break
-                next_word_emb = self.emb_layer(torch.tensor([next_vocab])).to(self.device)
+                next_word_emb = self.emb_layer(torch.tensor([next_vocab]).unsqueeze(0).to(self.device))
                 tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(self.device)
 
         return generated_output
+
+    def do_my_shit(self):
+        dev_text = self.dev_dataset['text'][0]
+        dev_label = self.dev_dataset['label'][0]
+        print(self.dev_dataset[0])
+        output0 = self.generate_beam(desired_label=dev_label, input_=self.dev_dataset[0])
+        output1 = self.generate_beam(desired_label=1 - dev_label, input_=self.dev_dataset[0])
+        print(output0)
+        print(output1)
+        print(len(output0[0][0]))
+        print(len(output1))
+        print(output0 == output1)
 
     def generate_beam(self, desired_label, input_=None, memory=None, K=5, max_len=128):
         assert not (input_ is None and memory is None)
         EOS_token_id = 5  ## for snapp dataset
 
         if input_ is not None:
-            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64)
-            src_padding_mask = torch.tensor([False] * (len(input_text) + 1))
+            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
+            src_padding_mask = torch.tensor([False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
             embedded_inputs = self.emb_layer(input_text)
             memory = self.encoder(
                 embedded_inputs, src_padding_mask)
@@ -261,10 +263,12 @@ class StyleTransferModel():
             with torch.no_grad():
                 dec_out = self.decoder(tgt=tgt, memory=memory)  ## should we use 'decoder_output'? let's talk about it
                 dec_out = m(dec_out[:, -1, :])
+                # print(dec_out.size())
                 next_vocabs = torch.topk(dec_out, K)
+                # print((next_vocabs.indices[0]))
                 outputs = []
                 for voc in range(K):
-                    outputs.append(next_vocabs.indices[voc], next_vocabs.values[voc])
+                    outputs.append([next_vocabs.indices[0][voc], next_vocabs.values[0][voc]])
                 return outputs
 
         target_sequences = [[list([self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]), 0.0] * K]
@@ -279,13 +283,14 @@ class StyleTransferModel():
                 if target_list[-1] == EOS_token_id:  ## how to deal with EOS?
                     continue
 
-                tgt_ = self.emb_layer(torch.tensor(target_list).to(
+                tgt_ = self.emb_layer(torch.tensor(target_list).unsqueeze(0).to(
                     self.device))
 
                 next_candidates = next_most_probables(tgt_, memory)
                 ## mult of probabilities is the sum of their logs
                 for candidate in next_candidates:
-                    new_targets.append([target_list + candidate[0], target_score - np.log(candidate[1])])
+                    # print(candidate[0].tolist())
+                    new_targets.append([target_list + [candidate[0].tolist()], target_score - np.log(candidate[1].tolist())])
 
             target_sequences = sorted(new_targets, key=lambda tup: tup[1])[:K]
             all_ended = True
