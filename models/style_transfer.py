@@ -64,11 +64,14 @@ class StyleTransferModel():
             "data/snappfood/", "test.csv", self.tokenizer)
 
         self.train_loader = DataLoader(
-            self.train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp, num_workers=args.num_workers)
+            self.train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp,
+            num_workers=args.num_workers)
         self.dev_loader = DataLoader(
-            self.dev_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp, num_workers=args.num_workers)
+            self.dev_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=data_collator_snapp,
+            num_workers=args.num_workers)
         self.test_loader = DataLoader(
-            self.test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=data_collator_snapp, num_workers=args.num_workers)
+            self.test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=data_collator_snapp,
+            num_workers=args.num_workers)
 
     def save(self, ) -> None:
         # save emb_layer, encoder, decoder, disc, their optims
@@ -123,12 +126,15 @@ class StyleTransferModel():
             encoder_output = torch.roll(encoder_output, shifts=1, dims=1)
 
             style_emb = self.emb_layer(torch.tensor(
-                [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(self.device))  # TODO: optimize!
+                [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
+                self.device))  # TODO: optimize!
             # shape : bsz, 1, 256
             style_emb = style_emb.squeeze(1)
             encoder_output[:, 0, :] = style_emb
-            dec_out = self.decoder(tgt=embedded_inputs, memory=encoder_output, memory_key_padding_mask=src_key_padding_mask,
-                                   tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)  # bsz, seq_len, vocab_size
+            dec_out = self.decoder(tgt=embedded_inputs, memory=encoder_output,
+                                   memory_key_padding_mask=src_key_padding_mask,
+                                   tgt_mask=tgt_mask,
+                                   tgt_key_padding_mask=src_key_padding_mask)  # bsz, seq_len, vocab_size
             rec_loss = self.rec_loss_criterion(
                 dec_out.flatten(0, 1), text_batch.flatten())
 
@@ -154,7 +160,7 @@ class StyleTransferModel():
 
                 self.disc_optim.zero_grad()
                 adv_loss = self.args.LAMBDA * \
-                    self.adv_loss_criterion(disc_logits, labels)
+                           self.adv_loss_criterion(disc_logits, labels)
                 adv_loss.backward()
                 self.disc_optim.step()
 
@@ -164,34 +170,81 @@ class StyleTransferModel():
                     disc_preds == labels)
 
                 # encoder adv update
-                if (idx+1) % 5 == 0:
+                if (idx + 1) % 5 == 0:
                     disc_logits = self.disc(encoder_output)
                     self.encoder_optim.zero_grad()
                     adv_loss = -self.args.LAMBDA * \
-                        self.adv_loss_criterion(disc_logits, labels)
+                               self.adv_loss_criterion(disc_logits, labels)
                     adv_loss.backward()
                     self.encoder_optim.step()
 
             # logging every 100 minibatch
-            if (idx+1) % 100 == 0:
+            if (idx + 1) % 100 == 0:
                 total_num_samples += running_num_samples
                 total_rec_loss += running_rec_loss
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
                 global_step = epoch * \
-                    (len(self.train_loader)//100) + (idx+1)//100
+                              (len(self.train_loader) // 100) + (idx + 1) // 100
                 self.logger.add_scalar(
-                    'Train/Loss/reconstruction', running_rec_loss/running_num_samples, global_step=global_step)
+                    'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
-                    'Train/Loss/discriminator', running_disc_loss/running_num_samples, global_step=global_step)
+                    'Train/Loss/discriminator', running_disc_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
                     'Train/Accuracy/discriminator', disc_acc, global_step=global_step)
                 running_num_samples, running_rec_loss, running_disc_loss, running_disc_correct_preds = 0, 0, 0, 0
 
-            if (idx+1) % 500 == 0 and torch.cuda.is_available():
+            if (idx + 1) % 500 == 0 and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
         return total_rec_loss, total_disc_loss
+
+    # mask = rearrange(torch.triu(torch.ones(length, length)) == 1, 'h w -> w h')
+    # mask = mask.float().masked_fill(mask == 0, float(
+    #     '-inf')).masked_fill(mask == 1, float(0.0))
+
+    def generate_greedy(self, desired_label, input=None, memory=None, max_len=128):
+        '''
+        one of memory and input_text should be given though
+        '''
+        assert not (input is None and memory is None)
+        EOS_token_id = 5  ## for snapp dataset
+
+        if input is not None:
+            input_text = torch.tensor(input['text'] + [EOS_token_id], dtype=torch.int64)
+            src_padding_mask = torch.tensor([False] * (len(input_text) + 1))
+            embedded_inputs = self.emb_layer(input_text)
+            memory = self.encoder(
+                embedded_inputs, src_padding_mask)
+
+        encoder_output = torch.roll(memory, shifts=1, dims=1)
+
+        style_emb = self.emb_layer(torch.tensor(
+            [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
+            self.device))
+
+        style_emb = style_emb.squeeze(1)
+        encoder_output[:, 0, :] = style_emb  ## why are we putting style embedding in encoder output again?? what about
+        ## the decoder?
+
+        generated_output = []
+        with torch.no_grad():
+            print(style_emb.size())
+            tgt_ = self.emb_layer(torch.tensor(
+                [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
+                self.device))
+
+            while len(generated_output) < max_len:
+                dec_out = self.decoder(tgt=tgt_, memory=memory)  ## should we use 'decoder_output'? let's talk about it
+
+                next_vocab = torch.argmax(dec_out[:, -1, :])  ##batch size is 1
+                generated_output.append(next_vocab)
+                if next_vocab == EOS_token_id:
+                    break
+                next_word_emb = self.emb_layer(torch.tensor([next_vocab])).to(self.device)
+                tgt_ = torch.cat([tgt_, next_word_emb], axis=-1).to(self.device)
+
+        return generated_output
 
     def evaluate(self, test_loader, ):
         pass
