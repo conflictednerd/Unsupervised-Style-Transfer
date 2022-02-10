@@ -1,7 +1,7 @@
 import json
 import os
 from statistics import mode
-
+import numpy as np
 import torch
 import torch.optim as optim
 from snapp_dataset import create_snapp_dataset_from_path, data_collator_snapp
@@ -229,7 +229,6 @@ class StyleTransferModel():
 
         generated_output = []
         with torch.no_grad():
-            print(style_emb.size())
             tgt_ = self.emb_layer(torch.tensor(
                 [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
                 self.device))
@@ -245,6 +244,60 @@ class StyleTransferModel():
                 tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(self.device)
 
         return generated_output
+
+    def generate_beam(self, desired_label, input_=None, memory=None, K=5, max_len=128):
+        assert not (input_ is None and memory is None)
+        EOS_token_id = 5  ## for snapp dataset
+
+        if input_ is not None:
+            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64)
+            src_padding_mask = torch.tensor([False] * (len(input_text) + 1))
+            embedded_inputs = self.emb_layer(input_text)
+            memory = self.encoder(
+                embedded_inputs, src_padding_mask)
+
+        def next_most_probables(tgt, memory):
+            m = torch.nn.Softmax()
+            with torch.no_grad():
+                dec_out = self.decoder(tgt=tgt, memory=memory)  ## should we use 'decoder_output'? let's talk about it
+                dec_out = m(dec_out[:, -1, :])
+                next_vocabs = torch.topk(dec_out, K)
+                outputs = []
+                for voc in range(K):
+                    outputs.append(next_vocabs.indices[voc], next_vocabs.values[voc])
+                return outputs
+
+        target_sequences = [[list([self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]), 0.0] * K]
+
+        max_len_in_seq = 1
+        while max_len_in_seq < max_len:
+            new_targets = []
+            for target in target_sequences:
+                target_list = target[0]
+                target_score = target[1]
+
+                if target_list[-1] == EOS_token_id:  ## how to deal with EOS?
+                    continue
+
+                tgt_ = self.emb_layer(torch.tensor(target_list).to(
+                    self.device))
+
+                next_candidates = next_most_probables(tgt_, memory)
+                ## mult of probabilities is the sum of their logs
+                for candidate in next_candidates:
+                    new_targets.append([target_list + candidate[0], target_score - np.log(candidate[1])])
+
+            target_sequences = sorted(new_targets, key=lambda tup: tup[1])[:K]
+            all_ended = True
+            for seq in target_sequences:
+                if seq[0][-1] != EOS_token_id:
+                    all_ended = False
+                    break
+            if all_ended:
+                break
+            max_len_in_seq = max([len(seq[0]) for seq in target_sequences])
+
+        return target_sequences
 
     def evaluate(self, test_loader, ):
         pass
