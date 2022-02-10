@@ -123,15 +123,15 @@ class StyleTransferModel():
             embedded_inputs = self.emb_layer(text_batch)
             encoder_output = self.encoder(
                 embedded_inputs, src_key_padding_mask)  # bsz x seq_len x d_model
-            encoder_output = torch.roll(encoder_output, shifts=1, dims=1)
+            decoder_tgt = torch.roll(encoder_output, shifts=1, dims=1)
 
             style_emb = self.emb_layer(torch.tensor(
                 [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
                 self.device))  # TODO: optimize!
             # shape : bsz, 1, 256
             style_emb = style_emb.squeeze(1)
-            encoder_output[:, 0, :] = style_emb
-            dec_out = self.decoder(tgt=embedded_inputs, memory=encoder_output,
+            decoder_tgt[:, 0, :] = style_emb
+            dec_out = self.decoder(tgt=decoder_tgt, memory=encoder_output,
                                    memory_key_padding_mask=src_key_padding_mask,
                                    tgt_mask=tgt_mask,
                                    tgt_key_padding_mask=src_key_padding_mask)  # bsz, seq_len, vocab_size
@@ -203,29 +203,29 @@ class StyleTransferModel():
     # mask = mask.float().masked_fill(mask == 0, float(
     #     '-inf')).masked_fill(mask == 1, float(0.0))
 
-    def generate_greedy(self, desired_label, input=None, memory=None, max_len=128):
+    def generate_greedy(self, desired_label, input_=None, memory=None, max_len=128):
         '''
         one of memory and input_text should be given though
         '''
-        assert not (input is None and memory is None)
+        assert not (input_ is None and memory is None)
         EOS_token_id = 5  ## for snapp dataset
 
-        if input is not None:
-            input_text = torch.tensor(input['text'] + [EOS_token_id], dtype=torch.int64)
+        if input_ is not None:
+            input_text = torch.tensor(input_['text'] + [EOS_token_id], dtype=torch.int64)
             src_padding_mask = torch.tensor([False] * (len(input_text) + 1))
             embedded_inputs = self.emb_layer(input_text)
             memory = self.encoder(
                 embedded_inputs, src_padding_mask)
 
-        encoder_output = torch.roll(memory, shifts=1, dims=1)
-
-        style_emb = self.emb_layer(torch.tensor(
-            [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
-            self.device))
-
-        style_emb = style_emb.squeeze(1)
-        encoder_output[:, 0, :] = style_emb  ## why are we putting style embedding in encoder output again?? what about
-        ## the decoder?
+        # encoder_output = torch.roll(memory, shifts=1, dims=1)
+        #
+        # style_emb = self.emb_layer(torch.tensor(
+        #     [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
+        #     self.device))
+        #
+        # style_emb = style_emb.squeeze(1)
+        # encoder_output[:, 0, :] = style_emb  ## why are we putting style embedding in encoder output again?? what about
+        # ## the decoder?
 
         generated_output = []
         with torch.no_grad():
@@ -242,7 +242,7 @@ class StyleTransferModel():
                 if next_vocab == EOS_token_id:
                     break
                 next_word_emb = self.emb_layer(torch.tensor([next_vocab])).to(self.device)
-                tgt_ = torch.cat([tgt_, next_word_emb], axis=-1).to(self.device)
+                tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(self.device)
 
         return generated_output
 
