@@ -314,8 +314,8 @@ class StyleTransferModel():
                 next_tokens = torch.topk(dec_out, K)
                 outputs = []
                 for token in range(K):
-                    outputs.append([next_tokens.indices[0][token],
-                                    next_tokens.values[0][token]])
+                    outputs.append([next_tokens.indices[token],
+                                    next_tokens.values[token]])
                 return outputs
 
         target_sequences = [[[self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']], 0.0] * K]
