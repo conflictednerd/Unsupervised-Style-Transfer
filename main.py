@@ -21,6 +21,8 @@ def get_parser():
                         type=str, help='Directory where logs are stored')
     parser.add_argument('--num-styles', default=2, type=int,
                         help='Number of styles: 2 for snapp and 3 for poems')
+    parser.add_argument('--decoding-strategy', default='beam',
+                        type=str, help='Decoding strategy used for generating new sentences. One of "greedy", "beam" or "sampling"')
 
     # Training
     parser.add_argument('--epochs', default=20,  # TODO

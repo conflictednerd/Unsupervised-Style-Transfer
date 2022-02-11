@@ -40,15 +40,15 @@ Create a supervised test dataset
 
 TODO:
 X saving and loading model every epoch 
-1. greedy search for testing
-2. beam search for testing
-3. tune discriminator updates vs. encoder updates[only update encoder if discriminator's loss is low] (first, train Autoencoder for a couple epochs, then upgrade disc with every batch and encoder once every three batches)
+X. greedy search for testing
+X. beam search for testing
+X. tune discriminator updates vs. encoder updates[only update encoder if discriminator's loss is low] (first, train Autoencoder for a couple epochs, then upgrade disc with every batch and encoder once every three batches)
 X. tune lambda for adv vs reconstruction loss (lambda = 10 so that adv loss is more bold)
 5. add noise to disc input
 6. compute validation (reconstruction and disc) loss, disc acc and report every epoch
-7. logging with tensorboard (log every 100 batches or so)
+X. logging with tensorboard (log every 100 batches or so)
 8. compute bleu score for testing
-9. After every epoch, generate sentences for opposite and same style to see how the model is performing
+X. After every epoch, generate sentences for opposite and same style to see how the model is performing
 X. delete unused tensors
 X. Dataloader num_workers
 12. 50 Test set sentences -> change sentiment -> BLEU
