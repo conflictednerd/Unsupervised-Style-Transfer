@@ -150,7 +150,7 @@ class StyleTransferModel():
                 self.encoder_optim.zero_grad()
                 self.decoder_optim.zero_grad()
                 loss = rec_loss + self.args.lambda_gan * \
-                    enc_loss if self.update_disc(epoch, idx) else rec_loss
+                       enc_loss if self.update_disc(epoch, idx) else rec_loss
                 loss.backward()
                 self.decoder_optim.step()
                 self.encoder_optim.step()
@@ -174,7 +174,7 @@ class StyleTransferModel():
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
                 global_step = epoch * \
-                    (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
+                              (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
                 self.logger.add_scalar(
                     'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
@@ -271,7 +271,7 @@ class StyleTransferModel():
                 outputs = []
                 for voc in range(K):
                     outputs.append([next_vocabs.indices[0][voc],
-                                   next_vocabs.values[0][voc]])
+                                    next_vocabs.values[0][voc]])
                 return outputs
 
         target_sequences = [
@@ -285,6 +285,7 @@ class StyleTransferModel():
                 target_score = target[1]
 
                 if target_list[-1] == EOS_token_id:  # how to deal with EOS?
+                    new_targets.append(target)
                     continue
 
                 tgt_ = self.emb_layer(torch.tensor(target_list).unsqueeze(0).to(
@@ -309,18 +310,21 @@ class StyleTransferModel():
 
         return target_sequences
 
+    def show_results(self):
+        pass
+
     def evaluate(self, ):
         n = 3
         self.eval_mode()
         text_batch, labels, src_key_padding_mask, tgt_mask = next(
             iter(self.dev_loader))
         memories = self.encoder(self.emb_layer(
-            text_batch[:2*n].to(self.device)), src_key_padding_mask[:2*n].to(self.device))
+            text_batch[:2 * n].to(self.device)), src_key_padding_mask[:2 * n].to(self.device))
         print('######### Evaluation #########')
-        for i in range(2*n):
+        for i in range(2 * n):
             memory = memories[i].unsqueeze(0)
             desired_label = labels[i] if i < n else (
-                labels[i] + 1) % self.args.num_styles
+                                                            labels[i] + 1) % self.args.num_styles
             result = self.generate_greedy(
                 desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
             print(f'''Original sentence with label {labels[i].item()}:
