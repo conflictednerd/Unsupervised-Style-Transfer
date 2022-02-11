@@ -25,15 +25,16 @@ def get_parser():
                         type=str, help='Decoding strategy used for generating new sentences. One of "greedy", "beam" or "sampling"')
 
     # Training
-    parser.add_argument('--epochs', default=20,  # TODO
+    parser.add_argument('--epochs', default=50,  # TODO
                         type=int, help='batch size')
     parser.add_argument('--label-smoothing', default='0.2',
                         type=float, help='label smoothing ratio used in training the discriminator')
     parser.add_argument('--lambda-gan', default=50.0,
                         type=float, help='coefficient of adversarial loss')
-    parser.add_argument('--ae-pretraining-epochs', default=5,
+    parser.add_argument('--ae-pretraining-epochs', default=10,
                         type=int, help='The number of epochs that the autoencoder part will train without adversarial loss')
-
+    parser.add_argument('--ae-update-freq', default=5,
+                        type=int, help='(After pretraining) update the autoencoder once every this many minibatches')
     # Dataset Setting
     parser.add_argument('--batch-size', default=32,
                         type=int, help='batch size')

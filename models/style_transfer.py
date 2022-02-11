@@ -81,6 +81,8 @@ class StyleTransferModel():
                 Discriminator parameters: {sum(p.numel() for p in self.disc.parameters() if p.requires_grad)}
                 Total number of parameters: {sum(p.numel() for p in list(self.emb_layer.parameters()) + list(self.encoder.parameters()) + list(self.decoder.parameters()) + list(self.disc.parameters()) if p.requires_grad)}''')
 
+        self.log()
+
     def save(self, ) -> None:
         # save emb_layer, encoder, decoder, disc, their optims
         model_dict = {
@@ -433,7 +435,7 @@ class StyleTransferModel():
         '''
         For the first couple of epochs, update the ae. After that, update only on some batches
         '''
-        return (epoch < self.args.ae_pretraining_epochs) or (batch_idx % 5 == 0)
+        return (epoch < self.args.ae_pretraining_epochs) or (batch_idx % self.args.ae_update_freq == 0)
 
     def train_mode(self, ) -> None:
         self.emb_layer.train()
