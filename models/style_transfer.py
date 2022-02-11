@@ -246,8 +246,8 @@ class StyleTransferModel():
         print(len(output1))
         print(output0 == output1)
 
-    def generate_beam(self, desired_label, input_=None, memory=None, K=5, max_len=128):
-        assert not (input_ is None and memory is None)
+    def generate_beam(self, desired_label, input_=None, memory=None, memory_key_padding_mask=None, K=5, max_len=128):
+        assert not (input_ is None and memory is None) ## there are actually more ways for this to fail but we ignore them for now
         EOS_token_id = 5  # for snapp dataset
 
         if input_ is not None:
@@ -258,12 +258,14 @@ class StyleTransferModel():
             embedded_inputs = self.emb_layer(input_text)
             memory = self.encoder(
                 embedded_inputs, src_padding_mask)
+            memory_key_padding_mask = src_padding_mask
 
         def next_most_probables(tgt, memory):
             m = torch.nn.Softmax()
             with torch.no_grad():
                 # should we use 'decoder_output'? let's talk about it
-                dec_out = self.decoder(tgt=tgt, memory=memory)
+                dec_out = self.decoder(tgt=tgt, memory=memory,
+                                       memory_key_padding_mask=memory_key_padding_mask.to(self.device))
                 dec_out = m(dec_out[:, -1, :])
                 # print(dec_out.size())
                 next_vocabs = torch.topk(dec_out, K)
@@ -310,8 +312,17 @@ class StyleTransferModel():
 
         return target_sequences
 
-    def show_results(self):
-        pass
+    def show_results(self, original, original_label, desired_label, result, beam=False):
+        print(f'''Original sentence with label {original_label}:
+                    {' '.join([word for word in self.tokenizer.inv_transform([[int(x) for x in original]])[0].split() if word not in ['__pad']])}''')
+        if not beam:
+            print(f'''Generated sentence with label {desired_label}:''')
+            print(f'''{self.tokenizer.inv_transform([[int(x) for x in result]])[0]}''')
+        else:
+            print(f'''Generated sentences with label {desired_label}:''')
+            for idx, beam_result in enumerate(result):
+                print(f'''{idx + 1}: {self.tokenizer.inv_transform([[int(x) for x in beam_result[0]]])[0]}''')
+        print("-" * 100)
 
     def evaluate(self, ):
         n = 3
@@ -325,13 +336,9 @@ class StyleTransferModel():
             memory = memories[i].unsqueeze(0)
             desired_label = labels[i] if i < n else (
                                                             labels[i] + 1) % self.args.num_styles
-            result = self.generate_greedy(
+            result = self.generate_beam(
                 desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
-            print(f'''Original sentence with label {labels[i].item()}:
-            {' '.join([word for word in self.tokenizer.inv_transform([[int(x) for x in text_batch[i]]])[0].split() if word not in ['__pad']])}
-            Generated sentence with label {desired_label}:
-            {self.tokenizer.inv_transform([[int(x) for x in result]])[0]}
-            ''')
+            self.show_results(text_batch[i], labels[i].item(), desired_label, result, beam=True)
 
     def log(self, ):
         with open(os.path.join('./' + self.log_dir, 'config.json'), 'w') as f:
