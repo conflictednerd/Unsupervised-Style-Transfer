@@ -111,9 +111,10 @@ class StyleTransferModel():
             train_rec_loss, train_disc_loss = self.run_epoch(
                 epoch)
             print(
-                f'Reconstruction loss: {train_rec_loss.item():.3f}, Discriminator loss: {train_disc_loss.item():.3f}')
+                f'Reconstruction loss: {train_rec_loss:.3f}, Discriminator loss: {train_disc_loss:.3f}')
             self.save()
             # TODO: run evaluation on dev set
+            self.evaluate()
 
     def run_epoch(self, epoch):
         total_rec_loss, total_disc_loss, total_num_samples = 0, 0, 0
@@ -139,10 +140,11 @@ class StyleTransferModel():
                                           memory_key_padding_mask=src_key_padding_mask,
                                           tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)
             rec_loss = self.rec_loss_criterion(
-                decoder_output.flatten(0, 1), text_batch.flatten)
+                decoder_output.flatten(0, 1), text_batch.flatten())
             disc_logits = self.disc(encoder_output_detached)
             disc_loss = self.adv_loss_criterion(disc_logits, labels)
-            enc_loss = -self.adv_loss_criterion(self.disc(encoder_output), labels)
+            enc_loss = - \
+                self.adv_loss_criterion(self.disc(encoder_output), labels)
 
             self.disc_optim.zero_grad()
             self.encoder_optim.zero_grad()
@@ -151,7 +153,8 @@ class StyleTransferModel():
                 disc_loss.backward()
                 self.disc_optim.step()
             if self.update_ae(epoch, idx):
-                loss = rec_loss + self.args.lambda_gan * enc_loss if self.update_disc(epoch, idx) else rec_loss
+                loss = rec_loss + self.args.lambda_gan * \
+                    enc_loss if self.update_disc(epoch, idx) else rec_loss
                 loss.backward()
                 self.decoder_optim.step()
                 self.encoder_optim.step()
@@ -170,7 +173,8 @@ class StyleTransferModel():
                 total_rec_loss += running_rec_loss
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
-                global_step = epoch * (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
+                global_step = epoch * \
+                    (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
                 self.logger.add_scalar(
                     'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
@@ -179,7 +183,7 @@ class StyleTransferModel():
                     'Train/Accuracy/discriminator', disc_acc, global_step=global_step)
                 running_num_samples, running_rec_loss, running_disc_loss, running_disc_correct_preds = 0, 0, 0, 0
 
-            if (idx + 1) % 450 == 0:
+            if (idx + 1) % 900 == 0:
                 self.evaluate()
 
             if (idx + 1) % 500 == 0 and torch.cuda.is_available():
@@ -215,7 +219,8 @@ class StyleTransferModel():
 
             while len(generated_output) < max_len:
                 # should we use 'decoder_output'? let's talk about it
-                dec_out = self.decoder(tgt=tgt_, memory=memory, memory_key_padding_mask=memory_key_padding_mask.to(self.device))
+                dec_out = self.decoder(
+                    tgt=tgt_, memory=memory, memory_key_padding_mask=memory_key_padding_mask.to(self.device))
 
                 next_vocab = torch.argmax(dec_out[:, -1, :])  # batch size is 1
                 generated_output.append(next_vocab)
@@ -305,18 +310,23 @@ class StyleTransferModel():
         return target_sequences
 
     def evaluate(self, ):
-        n = 2
+        n = 3
         self.eval_mode()
-        text_batch, labels, src_key_padding_mask, tgt_mask = next(iter(self.dev_loader))
-        memories = self.encoder(self.emb_layer(text_batch[:2*n].to(self.device)), src_key_padding_mask[:2*n].to(self.device))
+        text_batch, labels, src_key_padding_mask, tgt_mask = next(
+            iter(self.dev_loader))
+        memories = self.encoder(self.emb_layer(
+            text_batch[:2*n].to(self.device)), src_key_padding_mask[:2*n].to(self.device))
+        print('######### Evaluation #########')
         for i in range(2*n):
             memory = memories[i].unsqueeze(0)
-            desired_label = labels[i] if i < n else (labels[i] + 1) % self.args.num_styles
-            result = self.generate_greedy(desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
-            print(f'''Original sentence with label {labels[i]}:
-            {self.tokenizer.inv_transform([text_batch[i]])}
+            desired_label = labels[i] if i < n else (
+                labels[i] + 1) % self.args.num_styles
+            result = self.generate_greedy(
+                desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
+            print(f'''Original sentence with label {[labels[i]]}:
+            {' '.join([word for word in self.tokenizer.inv_transform([[int(x) for x in text_batch[i]]])[0].split() if word not in ['__pad']])}
             Generated sentence with label {desired_label}:
-            {self.tokenizer.inv_transform([result])[0]}
+            {self.tokenizer.inv_transform([[int(x) for x in result]])[0]}
             ''')
 
     def log(self, ):
