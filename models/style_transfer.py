@@ -146,18 +146,18 @@ class StyleTransferModel():
             enc_loss = - \
                 self.adv_loss_criterion(self.disc(encoder_output), labels)
 
-            self.disc_optim.zero_grad()
-            self.encoder_optim.zero_grad()
-            self.decoder_optim.zero_grad()
-            if self.update_disc(epoch, idx):
-                disc_loss.backward()
-                self.disc_optim.step()
             if self.update_ae(epoch, idx):
+                self.encoder_optim.zero_grad()
+                self.decoder_optim.zero_grad()
                 loss = rec_loss + self.args.lambda_gan * \
                     enc_loss if self.update_disc(epoch, idx) else rec_loss
                 loss.backward()
                 self.decoder_optim.step()
                 self.encoder_optim.step()
+            if self.update_disc(epoch, idx):
+                self.disc_optim.zero_grad()
+                disc_loss.backward()
+                self.disc_optim.step()
 
             # bookkeeping stats
             batch_size = len(labels)
@@ -323,7 +323,7 @@ class StyleTransferModel():
                 labels[i] + 1) % self.args.num_styles
             result = self.generate_greedy(
                 desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
-            print(f'''Original sentence with label {[labels[i]]}:
+            print(f'''Original sentence with label {labels[i].item()}:
             {' '.join([word for word in self.tokenizer.inv_transform([[int(x) for x in text_batch[i]]])[0].split() if word not in ['__pad']])}
             Generated sentence with label {desired_label}:
             {self.tokenizer.inv_transform([[int(x) for x in result]])[0]}
