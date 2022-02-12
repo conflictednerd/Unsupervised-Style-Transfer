@@ -154,7 +154,7 @@ class StyleTransferModel():
                 self.encoder_optim.zero_grad()
                 self.decoder_optim.zero_grad()
                 loss = rec_loss + self.args.lambda_gan * \
-                    enc_loss if self.update_disc(epoch, idx) else rec_loss
+                       enc_loss if self.update_disc(epoch, idx) else rec_loss
                 loss.backward()
                 self.decoder_optim.step()
                 self.encoder_optim.step()
@@ -178,7 +178,7 @@ class StyleTransferModel():
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
                 global_step = epoch * \
-                    (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
+                              (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
                 self.logger.add_scalar(
                     'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
@@ -199,7 +199,8 @@ class StyleTransferModel():
     # mask = mask.float().masked_fill(mask == 0, float(
     #     '-inf')).masked_fill(mask == 1, float(0.0))
 
-    def generate_sampling(self, desired_label, top_k: int = 10, top_p: float = 0.0, temperature=0.2, input_=None, memory=None, memory_key_padding_mask=None, max_len=128):
+    def generate_sampling(self, desired_label, top_k: int = 10, top_p: float = 0.0, temperature=0.2, input_=None,
+                          memory=None, memory_key_padding_mask=None, max_len=128):
         '''
         top_k: keep only top k tokens with highest probability (top-k filtering)
         top_p: top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering)
@@ -340,7 +341,7 @@ class StyleTransferModel():
             if all_ended:
                 break
             min_active_len = min([len(seq[0])
-                                 for seq in target_sequences if seq[0][-1] != EOS_token_id])
+                                  for seq in target_sequences if seq[0][-1] != EOS_token_id])
 
         return target_sequences[0][0]
 
@@ -352,30 +353,49 @@ class StyleTransferModel():
             f'''{self.tokenizer.inv_transform([[int(x) for x in result]])[0]}''')
         print("-" * 100)
 
-    def evaluate(self, n=2):
+    def evaluate_on_data_loader(self, data_loader, n=2):
         decode_mode = self.args.decoding_strategy
         self.eval_mode()
         text_batch, labels, src_key_padding_mask, tgt_mask = next(
-            iter(self.dev_loader))
+            iter(data_loader))
         memories = self.encoder(self.emb_layer(
             text_batch[:2 * n].to(self.device)), src_key_padding_mask[:2 * n].to(self.device))
+
         print('######### Evaluation #########')
         for i in range(2 * n):
             memory = memories[i].unsqueeze(0)
             desired_label = labels[i] if i < n else (
-                labels[i] + 1) % self.args.num_styles
+                                                            labels[i] + 1) % self.args.num_styles
             if decode_mode == 'greedy':
                 result = self.generate_greedy(
                     desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
             elif decode_mode == 'beam':
                 result = self.generate_beam(
-                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0), K=self.args.beam_width)
+                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0),
+                    K=self.args.beam_width)
             else:
                 result = self.generate_sampling(
                     desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
 
             self.show_results(
                 text_batch[i], labels[i].item(), desired_label, result)
+
+    def evaluate(self, n=2, train_loader=True, dev_loader=False, test_loader=False):
+
+        if train_loader:
+            print("some examples from the train dataset:")
+            self.evaluate_on_data_loader(self.train_loader, n=n)
+            print("#" * 150)
+
+        if dev_loader:
+            print("some examples from the dev dataset:")
+            self.evaluate_on_data_loader(self.dev_loader, n=n)
+            print("#" * 150)
+
+        if test_loader:
+            print("some examples from the test dataset:")
+            self.evaluate_on_data_loader(self.test_loader, n=n)
+            print("#" * 150)
 
     def log(self, ):
         with open(os.path.join('./' + self.log_dir, 'config.json'), 'w') as f:
@@ -405,7 +425,7 @@ class StyleTransferModel():
             sorted_indices_to_remove = cumulative_probs > top_p
             # Shift the indices to the right to keep also the first token above the threshold
             sorted_indices_to_remove[...,
-                                     1:] = sorted_indices_to_remove[..., :-1].clone()
+            1:] = sorted_indices_to_remove[..., :-1].clone()
             sorted_indices_to_remove[..., 0] = 0
 
             indices_to_remove = sorted_indices[sorted_indices_to_remove]

@@ -21,7 +21,8 @@ def get_parser():
     parser.add_argument('--num-styles', default=2, type=int,
                         help='Number of styles: 2 for snapp and 3 for poems')
     parser.add_argument('--decoding-strategy', default='beam',
-                        type=str, help='Decoding strategy used for generating new sentences. One of "greedy", "beam" or "sampling"')
+                        type=str,
+                        help='Decoding strategy used for generating new sentences. One of "greedy", "beam" or "sampling"')
     parser.add_argument('--beam-width', default=15,
                         type=int, help='Beam width used in beam search decoding')
     parser.add_argument('--evaluate', action='store_true', default=False,
@@ -35,7 +36,8 @@ def get_parser():
     parser.add_argument('--lambda-gan', default=50.0,
                         type=float, help='coefficient of adversarial loss')
     parser.add_argument('--ae-pretraining-epochs', default=10,
-                        type=int, help='The number of epochs that the autoencoder part will train without adversarial loss')
+                        type=int,
+                        help='The number of epochs that the autoencoder part will train without adversarial loss')
     parser.add_argument('--ae-update-freq', default=5,
                         type=int, help='(After pretraining) update the autoencoder once every this many minibatches')
     # Dataset Setting
@@ -71,7 +73,8 @@ def get_parser():
     # Discriminator
     parser.add_argument('--disc-channels', default=4,
                         type=int, help='Number of output channels for discriminators conv layers')
-    parser.add_argument('--disc-kernels', default=[1, 2, 3, 4, 5, 6, 8, 10],  # [1,2,3,4,5,6,8,10,16,32,64,128] for poems
+    parser.add_argument('--disc-kernels', default=[1, 2, 3, 4, 5, 6, 8, 10],
+                        # [1,2,3,4,5,6,8,10,16,32,64,128] for poems
                         type=List[int], help='Size of convolution kernels used in the discriminator')
     parser.add_argument('--disc-lr', default=1e-4, type=float,  # TODO
                         help='Discriminator learning rate')
@@ -87,4 +90,4 @@ if __name__ == '__main__':
     model.train()
     if args.evaluate:
         for i in range(2):
-            model.evaluate(n=16)
+            model.evaluate(n=16, test_loader=True)
