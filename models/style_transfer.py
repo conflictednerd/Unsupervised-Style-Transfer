@@ -277,20 +277,6 @@ class StyleTransferModel():
 
         return generated_output
 
-    def do_my_shit(self):
-        dev_text = self.dev_dataset['text'][0]
-        dev_label = self.dev_dataset['label'][0]
-        print(self.dev_dataset[0])
-        output0 = self.generate_beam(
-            desired_label=dev_label, input_=self.dev_dataset[0])
-        output1 = self.generate_beam(
-            desired_label=1 - dev_label, input_=self.dev_dataset[0])
-        print(output0)
-        print(output1)
-        print(len(output0[0][0]))
-        print(len(output1))
-        print(output0 == output1)
-
     def generate_beam(self, desired_label, input_=None, memory=None, memory_key_padding_mask=None, K=5, max_len=128):
         'TODO: This should also return a single sentence, not a list of them'
         # there are actually more ways for this to fail but we ignore them for now
@@ -320,7 +306,8 @@ class StyleTransferModel():
                                     next_tokens.values[token]])
                 return outputs
 
-        target_sequences = [[[self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']], 0.0] * K]
+        target_sequences = [
+            [[self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']], 0.0] * K]
 
         min_active_len = 1
         while min_active_len < max_len:
@@ -329,7 +316,8 @@ class StyleTransferModel():
                 target_list = target[0]
                 target_score = target[1]
 
-                if target_list[-1] == EOS_token_id or len(target_list) >= max_len:  # how to deal with EOS?
+                # how to deal with EOS?
+                if target_list[-1] == EOS_token_id or len(target_list) >= max_len:
                     new_targets.append(target)
                     continue
 
@@ -364,9 +352,8 @@ class StyleTransferModel():
             f'''{self.tokenizer.inv_transform([[int(x) for x in result]])[0]}''')
         print("-" * 100)
 
-    def evaluate(self, ):
+    def evaluate(self, n=2):
         decode_mode = self.args.decoding_strategy
-        n = 4
         self.eval_mode()
         text_batch, labels, src_key_padding_mask, tgt_mask = next(
             iter(self.dev_loader))
@@ -386,7 +373,7 @@ class StyleTransferModel():
             else:
                 result = self.generate_sampling(
                     desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
-            
+
             self.show_results(
                 text_batch[i], labels[i].item(), desired_label, result)
 

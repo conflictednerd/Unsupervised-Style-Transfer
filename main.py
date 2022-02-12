@@ -2,7 +2,6 @@ import argparse
 from pprint import pprint
 from typing import List
 
-from models.decoder import Decoder
 from models.style_transfer import StyleTransferModel
 
 
@@ -23,6 +22,8 @@ def get_parser():
                         help='Number of styles: 2 for snapp and 3 for poems')
     parser.add_argument('--decoding-strategy', default='beam',
                         type=str, help='Decoding strategy used for generating new sentences. One of "greedy", "beam" or "sampling"')
+    parser.add_argument('--evaluate', action='store_true', default=False,
+                        help='If True, will run evaluation after training. This will print out a certain number of examples from dev set')
 
     # Training
     parser.add_argument('--epochs', default=50,  # TODO
@@ -82,3 +83,6 @@ if __name__ == '__main__':
     pprint(f'Arguments are: {vars(args)}')  # For debugging
     model = StyleTransferModel(args)
     model.train()
+    if args.evaluate:
+        for i in range(2):
+            model.evaluate(n=16)
