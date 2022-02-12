@@ -369,7 +369,7 @@ class StyleTransferModel():
                     desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
             elif decode_mode == 'beam':
                 result = self.generate_beam(
-                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0), K=10)
+                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0), K=self.args.beam_width)
             else:
                 result = self.generate_sampling(
                     desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))

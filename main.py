@@ -22,6 +22,8 @@ def get_parser():
                         help='Number of styles: 2 for snapp and 3 for poems')
     parser.add_argument('--decoding-strategy', default='beam',
                         type=str, help='Decoding strategy used for generating new sentences. One of "greedy", "beam" or "sampling"')
+    parser.add_argument('--beam-width', default=15,
+                        type=int, help='Beam width used in beam search decoding')
     parser.add_argument('--evaluate', action='store_true', default=False,
                         help='If True, will run evaluation after training. This will print out a certain number of examples from dev set')
 
