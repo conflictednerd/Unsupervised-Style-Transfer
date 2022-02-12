@@ -115,10 +115,12 @@ class StyleTransferModel():
             train_rec_loss, train_disc_loss = self.run_epoch(
                 epoch)
             print(
-                f'Reconstruction loss: {train_rec_loss:.3f}, Discriminator loss: {train_disc_loss:.3f}')
+                f'Train reconstruction loss: {train_rec_loss:.3f}, discriminator loss: {train_disc_loss:.3f}')
             self.save()
-            # TODO: run evaluation on dev set
-            self.evaluate()
+            dev_rec_loss, dev_disc_loss = self.run_dev_epoch()
+            print(
+                f'Dev reconstruction loss: {dev_rec_loss:.3f}, discriminator loss: {dev_disc_loss:.3f}')
+            self.evaluate(train_loader=False, dev_loader=True)
 
     def run_epoch(self, epoch):
         total_rec_loss, total_disc_loss, total_num_samples = 0, 0, 0
@@ -198,6 +200,41 @@ class StyleTransferModel():
     # mask = rearrange(torch.triu(torch.ones(length, length)) == 1, 'h w -> w h')
     # mask = mask.float().masked_fill(mask == 0, float(
     #     '-inf')).masked_fill(mask == 1, float(0.0))
+    def run_dev_epoch(self):
+        total_rec_loss, total_disc_loss = 0, 0
+        for idx, batch in tqdm(enumerate(self.dev_loader), total=len(self.dev_loader)):
+            text_batch, labels, src_key_padding_mask, tgt_mask = batch
+            text_batch = text_batch.to(self.device)
+            labels = labels.to(self.device)
+            src_key_padding_mask = src_key_padding_mask.to(self.device)
+            tgt_mask = tgt_mask.to(self.device)
+
+            self.eval_mode()
+            with torch.no_grad():
+                embedded_inputs = self.emb_layer(text_batch)
+                encoder_output = self.encoder(
+                    embedded_inputs, src_key_padding_mask)
+                encoder_output_detached = encoder_output.detach()
+                decoder_tgt = torch.roll(encoder_output, shifts=1, dims=1)
+                style_embedding = self.emb_layer(torch.tensor(
+                    [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
+                    self.device))
+                decoder_tgt[:, 0, :] = style_embedding.squeeze(1)
+                decoder_output = self.decoder(tgt=decoder_tgt, memory=encoder_output,
+                                              memory_key_padding_mask=src_key_padding_mask,
+                                              tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)
+                rec_loss = self.rec_loss_criterion(
+                    decoder_output.flatten(0, 1), text_batch.flatten())
+                disc_logits = self.disc(encoder_output_detached)
+                disc_loss = self.adv_loss_criterion(disc_logits, labels)
+                enc_loss = - \
+                    self.adv_loss_criterion(self.disc(encoder_output), labels)
+
+                batch_size = len(labels)
+                total_rec_loss += rec_loss.item() * batch_size
+                total_disc_loss += disc_loss.item() * batch_size
+
+        return total_rec_loss, total_disc_loss
 
     def generate_sampling(self, desired_label, top_k: int = 10, top_p: float = 0.0, temperature=0.2, input_=None,
                           memory=None, memory_key_padding_mask=None, max_len=128):
