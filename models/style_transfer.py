@@ -1,10 +1,7 @@
 import json
 import os
-from statistics import mode
 
-import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.optim as optim
 from snapp_dataset import create_snapp_dataset_from_path, data_collator_snapp
 from tokenizer import Tokenizer
@@ -196,7 +193,7 @@ class StyleTransferModel():
             if (idx + 1) % 500 == 0 and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        return total_rec_loss, total_disc_loss
+        return total_rec_loss/total_num_samples, total_disc_loss/total_num_samples
 
     @torch.no_grad()
     def run_dev_epoch(self, epoch):
