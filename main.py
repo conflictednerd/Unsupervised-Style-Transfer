@@ -89,5 +89,4 @@ if __name__ == '__main__':
     model = StyleTransferModel(args)
     model.train()
     if args.evaluate:
-        for i in range(2):
-            model.evaluate(n=16, test_loader=True)
+        model.evaluate(n=16, train_loader=True, dev_loader=True)
