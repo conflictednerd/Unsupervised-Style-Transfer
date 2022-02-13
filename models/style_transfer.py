@@ -11,6 +11,8 @@ from tokenizer import Tokenizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from utils.decoding_strategies import (decode_beam, decode_greedy,
+                                       decode_sampling)
 
 from models.decoder import Decoder
 from models.discriminator import CNNDiscriminator
@@ -155,7 +157,7 @@ class StyleTransferModel():
                 self.encoder_optim.zero_grad()
                 self.decoder_optim.zero_grad()
                 loss = rec_loss + self.args.lambda_gan * \
-                       enc_loss if self.update_disc(epoch, idx) else rec_loss
+                    enc_loss if self.update_disc(epoch, idx) else rec_loss
                 loss.backward()
                 self.decoder_optim.step()
                 self.encoder_optim.step()
@@ -179,7 +181,7 @@ class StyleTransferModel():
                 total_disc_loss += running_disc_loss
                 disc_acc = running_disc_correct_preds / running_num_samples
                 global_step = epoch * \
-                              (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
+                    (len(self.train_loader) // 100) + (idx + 1) // 100 - 1
                 self.logger.add_scalar(
                     'Train/Loss/reconstruction', running_rec_loss / running_num_samples, global_step=global_step)
                 self.logger.add_scalar(
@@ -217,8 +219,8 @@ class StyleTransferModel():
                 self.device))
             decoder_tgt[:, 0, :] = style_embedding.squeeze(1)
             decoder_output = self.decoder(tgt=decoder_tgt, memory=encoder_output,
-                                            memory_key_padding_mask=src_key_padding_mask,
-                                            tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)
+                                          memory_key_padding_mask=src_key_padding_mask,
+                                          tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)
             rec_loss = self.rec_loss_criterion(
                 decoder_output.flatten(0, 1), text_batch.flatten())
             disc_logits = self.disc(encoder_output_detached)
@@ -228,7 +230,8 @@ class StyleTransferModel():
             total_samples += batch_size
             total_rec_loss += rec_loss.item() * batch_size
             total_disc_loss += disc_loss.item() * batch_size
-            corrects += torch.count_nonzero(torch.argmax(disc_logits, dim=-1) == labels)
+            corrects += torch.count_nonzero(
+                torch.argmax(disc_logits, dim=-1) == labels)
 
         global_step = (epoch+1) * (len(self.train_loader) // 100)
         self.logger.add_scalar(
@@ -236,154 +239,8 @@ class StyleTransferModel():
         self.logger.add_scalar(
             'Validation/Loss/discriminator', total_disc_loss / total_samples, global_step=global_step)
         self.logger.add_scalar(
-            'Validation/Accuracy/discriminator', corrects/total_samples , global_step=global_step)
-        return total_rec_loss/total_samples, total_disc_loss/total_samples
-
-    def generate_sampling(self, desired_label, top_k: int = 10, top_p: float = 0.0, temperature=0.2, input_=None,
-                          memory=None, memory_key_padding_mask=None, max_len=128):
-        '''
-        top_k: keep only top k tokens with highest probability (top-k filtering)
-        top_p: top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering)
-        '''
-        assert not (input_ is None and memory is None)
-        EOS_token_id = 5  # for snapp dataset
-        self.eval_mode()
-        if input_ is not None:
-            input_text = torch.tensor(
-                input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
-            src_padding_mask = torch.tensor(
-                [False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
-            embedded_inputs = self.emb_layer(input_text)
-            memory = self.encoder(
-                embedded_inputs, src_padding_mask)
-
-        generated_output = []
-        with torch.no_grad():
-            tgt_ = self.emb_layer(torch.tensor(
-                [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
-                self.device))
-
-            while len(generated_output) < max_len:
-                # should we use 'decoder_output'? let's talk about it
-                logits = self.decoder(
-                    tgt=tgt_, memory=memory, memory_key_padding_mask=memory_key_padding_mask.to(self.device))[0, -1, :]
-                filtered_logits = self.top_k_top_p_filtering(
-                    logits / temperature, top_k=top_k, top_p=top_p)
-                probabilities = F.softmax(filtered_logits, dim=-1)
-                next_token = torch.multinomial(probabilities, 1)
-
-                generated_output.append(next_token)
-                if next_token == EOS_token_id:
-                    break
-                next_word_emb = self.emb_layer(torch.tensor(
-                    [next_token]).unsqueeze(0).to(self.device))
-                tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(self.device)
-
-        return generated_output
-
-    def generate_greedy(self, desired_label, input_=None, memory=None, memory_key_padding_mask=None, max_len=128):
-        '''
-        one of memory and input_text should be given though
-        '''
-        assert not (input_ is None and memory is None)
-        EOS_token_id = 5  # for snapp dataset
-        self.eval_mode()
-        if input_ is not None:
-            input_text = torch.tensor(
-                input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
-            src_padding_mask = torch.tensor(
-                [False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
-            embedded_inputs = self.emb_layer(input_text)
-            memory = self.encoder(
-                embedded_inputs, src_padding_mask)
-
-        generated_output = []
-        with torch.no_grad():
-            tgt_ = self.emb_layer(torch.tensor(
-                [self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']]).unsqueeze(-1).to(
-                self.device))
-
-            while len(generated_output) < max_len:
-                # should we use 'decoder_output'? let's talk about it
-                dec_out = self.decoder(
-                    tgt=tgt_, memory=memory, memory_key_padding_mask=memory_key_padding_mask.to(self.device))
-
-                next_vocab = torch.argmax(dec_out[:, -1, :])  # batch size is 1
-                generated_output.append(next_vocab)
-                if next_vocab == EOS_token_id:
-                    break
-                next_word_emb = self.emb_layer(torch.tensor(
-                    [next_vocab]).unsqueeze(0).to(self.device))
-                tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(self.device)
-
-        return generated_output
-
-    def generate_beam(self, desired_label, input_=None, memory=None, memory_key_padding_mask=None, K=5, max_len=128):
-        'TODO: This should also return a single sentence, not a list of them'
-        # there are actually more ways for this to fail but we ignore them for now
-        assert not (input_ is None and memory is None)
-        EOS_token_id = 5  # for snapp dataset
-
-        if input_ is not None:
-            input_text = torch.tensor(
-                input_['text'] + [EOS_token_id], dtype=torch.int64).unsqueeze(0).to(self.device)
-            src_padding_mask = torch.tensor(
-                [False] * (len(input_text[0]))).unsqueeze(0).to(self.device)
-            embedded_inputs = self.emb_layer(input_text)
-            memory = self.encoder(
-                embedded_inputs, src_padding_mask)
-            memory_key_padding_mask = src_padding_mask
-
-        def next_most_probables(tgt, memory):
-            with torch.no_grad():
-                # should we use 'decoder_output'? let's talk about it
-                dec_out = self.decoder(tgt=tgt, memory=memory,
-                                       memory_key_padding_mask=memory_key_padding_mask.to(self.device))
-                dec_out = F.softmax(dec_out[0, -1, :], dim=-1)
-                next_tokens = torch.topk(dec_out, K)
-                outputs = []
-                for token in range(K):
-                    outputs.append([next_tokens.indices[token],
-                                    next_tokens.values[token]])
-                return outputs
-
-        target_sequences = [
-            [[self.tokenizer.encoder.word_vocab[f'__style{desired_label+1}']], 0.0] * K]
-
-        min_active_len = 1
-        while min_active_len < max_len:
-            new_targets = []
-            for target in target_sequences:
-                target_list = target[0]
-                target_score = target[1]
-
-                # how to deal with EOS?
-                if target_list[-1] == EOS_token_id or len(target_list) >= max_len:
-                    new_targets.append(target)
-                    continue
-
-                tgt_ = self.emb_layer(torch.tensor(target_list).unsqueeze(0).to(
-                    self.device))
-
-                next_candidates = next_most_probables(tgt_, memory)
-                # mult of probabilities is the sum of their logs
-                for candidate in next_candidates:
-                    # print(candidate[0].tolist())
-                    new_targets.append(
-                        [target_list + [candidate[0].tolist()], target_score - np.log(candidate[1].tolist())])
-
-            target_sequences = sorted(new_targets, key=lambda tup: tup[1])[:K]
-            all_ended = True
-            for seq in target_sequences:
-                if seq[0][-1] != EOS_token_id:
-                    all_ended = False
-                    break
-            if all_ended:
-                break
-            min_active_len = min([len(seq[0])
-                                  for seq in target_sequences if seq[0][-1] != EOS_token_id])
-
-        return target_sequences[0][0]
+            'Validation/Accuracy/discriminator', corrects / total_samples, global_step=global_step)
+        return total_rec_loss / total_samples, total_disc_loss / total_samples
 
     def show_results(self, original, original_label, desired_label, result):
         print(f'''Original sentence with label {original_label}:
@@ -405,23 +262,26 @@ class StyleTransferModel():
         for i in range(2 * n):
             memory = memories[i].unsqueeze(0)
             desired_label = labels[i] if i < n else (
-                                                            labels[i] + 1) % self.args.num_styles
+                labels[i] + 1) % self.args.num_styles
             if decode_mode == 'greedy':
-                result = self.generate_greedy(
-                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
+                result = decode_greedy(desired_label, self.tokenizer, self.emb_layer, self.encoder, self.decoder,
+                                       memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
             elif decode_mode == 'beam':
-                result = self.generate_beam(
-                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0),
-                    K=self.args.beam_width)
+                result = decode_beam(desired_label, self.tokenizer, self.emb_layer, self.encoder, self.decoder,
+                                     memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(
+                                         0),
+                                     K=self.args.beam_width)
             else:
-                result = self.generate_sampling(
-                    desired_label, memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(0))
+                result = decode_sampling(desired_label, self.tokenizer, self.emb_layer, self.encoder, self.decoder,
+                                         memory=memory, memory_key_padding_mask=src_key_padding_mask[i].unsqueeze(
+                                             0),
+                                         top_p=0.95)
 
             self.show_results(
                 text_batch[i], labels[i].item(), desired_label, result)
 
     def evaluate(self, n=2, train_loader=True, dev_loader=False, test_loader=False):
-
+        self.eval_mode()
         if train_loader:
             print("Some examples from the train dataset:")
             self.evaluate_on_data_loader(self.train_loader, n=n)
@@ -440,37 +300,6 @@ class StyleTransferModel():
     def log(self, ):
         with open(os.path.join('./' + self.log_dir, 'config.json'), 'w') as f:
             json.dump(vars(self.args), f)
-
-    def top_k_top_p_filtering(self, logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
-        """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
-            Args:
-                logits: logits distribution shape (vocabulary size)
-                top_k >0: keep only top k tokens with highest probability (top-k filtering).
-                top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
-                    Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
-        """
-        top_k = min(top_k, logits.size(-1))  # Safety check
-        if top_k > 0:
-            # Remove all tokens with a probability less than the last token of the top-k
-            indices_to_remove = logits < torch.topk(logits, top_k)[
-                0][..., -1, None]
-            logits[indices_to_remove] = filter_value
-
-        if top_p > 0.0:
-            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-            cumulative_probs = torch.cumsum(
-                F.softmax(sorted_logits, dim=-1), dim=-1)
-
-            # Remove tokens with cumulative probability above the threshold
-            sorted_indices_to_remove = cumulative_probs > top_p
-            # Shift the indices to the right to keep also the first token above the threshold
-            sorted_indices_to_remove[...,
-            1:] = sorted_indices_to_remove[..., :-1].clone()
-            sorted_indices_to_remove[..., 0] = 0
-
-            indices_to_remove = sorted_indices[sorted_indices_to_remove]
-            logits[indices_to_remove] = filter_value
-        return logits
 
     def update_disc(self, epoch: int, batch_idx: int) -> bool:
         '''
