@@ -190,7 +190,7 @@ def decode_sampling(
 
 @torch.no_grad()
 def scheduled_sampling(emb_layer: nn.Module, decoder: nn.Module,
-                       memory: torch.Tensor, teacher_targets: torch.Tensor,
+                       memory: torch.Tensor, style_embedding: torch.Tensor, teacher_targets: torch.Tensor,
                        memory_key_padding_mask: torch.Tensor, tgt_mask: torch.Tensor,
                        temperature: float = 0.6, top_k: int = 10, top_p: float = 0.0, iters: int = 5, p=0.25,
                        ) -> torch.Tensor:
@@ -207,6 +207,8 @@ def scheduled_sampling(emb_layer: nn.Module, decoder: nn.Module,
         B, T, V = probs.shape
         new_tgt_tokens = torch.multinomial(
             probs.reshape(-1, V), num_samples=1).reshape(B, T)
-        new_targets = emb_layer(new_tgt_tokens)
+        new_targets = emb_layer(new_tgt_tokens)  # BxTxh
+        new_targets = torch.roll(new_targets, shifts=1, dims=1)
+        new_targets[:, 0, :] = style_embedding.squeeze(1)
     idx = torch.empty(B, T, 1, dtype=torch.bool).bernoulli_(p)
     return torch.where(idx, new_targets, teacher_targets)

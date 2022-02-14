@@ -142,7 +142,7 @@ class StyleTransferModel():
             decoder_tgt[:, 0, :] = style_embedding.squeeze(1)
             if self.args.scheduled_sampling:
                 self.eval_mode()
-                decoder_tgt = scheduled_sampling(self.emb_layer, self.decoder, memory=encoder_output,
+                decoder_tgt = scheduled_sampling(self.emb_layer, self.decoder, memory=encoder_output, style_embedding=style_embedding,
                                                  teacher_targets=decoder_tgt, memory_key_padding_mask=src_key_padding_mask, tgt_mask=tgt_mask,
                                                  iters=self.args.scheduled_sampling_iters)
                 self.train_mode()
