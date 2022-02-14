@@ -40,6 +40,11 @@ def get_parser():
                         help='The number of epochs that the autoencoder part will train without adversarial loss')
     parser.add_argument('--ae-update-freq', default=5,
                         type=int, help='(After pretraining) update the autoencoder once every this many minibatches')
+    parser.add_argument('--scheduled-sampling', action='store_true', default=True,
+                        help='If True, will use scheduled sampling in training')
+    parser.add_argument('--scheduled-sampling-iters', default=5,
+                        type=int, help='Number of sampling iterations used in scheduled sampling. Larger values slow down training but reduces test time exposure bias.')
+
     # Dataset Setting
     parser.add_argument('--batch-size', default=32,
                         type=int, help='batch size')

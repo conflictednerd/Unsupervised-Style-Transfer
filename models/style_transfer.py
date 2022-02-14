@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from utils.decoding_strategies import (decode_beam, decode_greedy,
                                        decode_sampling)
-
+from utils.decoding_strategies import scheduled_sampling
 from models.decoder import Decoder
 from models.discriminator import CNNDiscriminator
 from models.encoder import EmbeddingLayer, Encoder
@@ -140,6 +140,12 @@ class StyleTransferModel():
                 [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
                 self.device))
             decoder_tgt[:, 0, :] = style_embedding.squeeze(1)
+            if self.args.scheduled_sampling:
+                self.eval_mode()
+                decoder_tgt = scheduled_sampling(self.emb_layer, self.decoder, memory=encoder_output,
+                                                 teacher_targets=decoder_tgt, memory_key_padding_mask=src_key_padding_mask, tgt_mask=tgt_mask,
+                                                 iters=self.args.scheduled_sampling_iters)
+                self.train_mode()
             decoder_output = self.decoder(tgt=decoder_tgt, memory=encoder_output,
                                           memory_key_padding_mask=src_key_padding_mask,
                                           tgt_mask=tgt_mask, tgt_key_padding_mask=src_key_padding_mask)

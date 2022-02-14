@@ -5,8 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# TODO: add one-step-batch-sampling decode to use for scheduled sampling instead of teacher forcing
-
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EOS_token_id = 5  # for snapp dataset
 
@@ -154,7 +152,7 @@ def decode_beam(
 def decode_sampling(
     desired_label: int,
     tokenizer, emb_layer: nn.Module, encoder: nn.Module, decoder: nn.Module,
-    top_k: int = 10, top_p: float = 0.0, temperature: float = 0.5,
+    top_k: int = 10, top_p: float = 0.0, temperature: float = 0.2,
     input_: dict = None, memory: torch.Tensor = None, memory_key_padding_mask: torch.Tensor = None,
         max_len: int = 128) -> List[torch.Tensor]:
     '''
@@ -188,3 +186,27 @@ def decode_sampling(
         tgt_ = torch.cat([tgt_, next_word_emb], axis=1).to(DEVICE)
 
     return generated_output
+
+
+@torch.no_grad()
+def scheduled_sampling(emb_layer: nn.Module, decoder: nn.Module,
+                       memory: torch.Tensor, teacher_targets: torch.Tensor,
+                       memory_key_padding_mask: torch.Tensor, tgt_mask: torch.Tensor,
+                       temperature: float = 0.6, top_k: int = 10, top_p: float = 0.0, iters: int = 5, p=0.25,
+                       ) -> torch.Tensor:
+    '''
+    All tensors are assumed to be on the desired device and models should be on eval mode
+    '''
+    new_targets = teacher_targets
+    for _ in range(iters):
+        logits = decoder(tgt=new_targets, memory=memory, memory_key_padding_mask=memory_key_padding_mask,
+                         tgt_mask=tgt_mask, tgt_key_padding_mask=memory_key_padding_mask)  # BxTxV
+        filtered_logits = top_k_top_p_filtering(
+            logits / temperature, top_k=top_k, top_p=top_p)  # BxTxV
+        probs = F.softmax(filtered_logits, dim=-1)
+        B, T, V = probs.shape
+        new_tgt_tokens = torch.multinomial(
+            probs.reshape(-1, V), num_samples=1).reshape(B, T)
+        new_targets = emb_layer(new_tgt_tokens)
+    idx = torch.empty(B, T, 1, dtype=torch.bool).bernoulli_(p)
+    return torch.where(idx, new_targets, teacher_targets)
