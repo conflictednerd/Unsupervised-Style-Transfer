@@ -210,5 +210,5 @@ def scheduled_sampling(emb_layer: nn.Module, decoder: nn.Module,
         new_targets = emb_layer(new_tgt_tokens)  # BxTxh
         new_targets = torch.roll(new_targets, shifts=1, dims=1)
         new_targets[:, 0, :] = style_embedding.squeeze(1)
-    idx = torch.empty(B, T, 1, dtype=torch.bool).bernoulli_(p)
+    idx = torch.empty(B, T, 1, dtype=torch.bool).bernoulli_(p).to(DEVICE)
     return torch.where(idx, new_targets, teacher_targets)

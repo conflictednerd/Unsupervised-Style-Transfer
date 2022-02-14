@@ -45,7 +45,7 @@ X. beam search for testing
 X. tune discriminator updates vs. encoder updates[only update encoder if discriminator's loss is low] (first, train Autoencoder for a couple epochs, then upgrade disc with every batch and encoder once every three batches)
 X. tune lambda for adv vs reconstruction loss (lambda = 10 so that adv loss is more bold)
 5. add noise to disc input
-6. compute validation (reconstruction and disc) loss, disc acc and report every epoch
+X. compute validation (reconstruction and disc) loss, disc acc and report every epoch
 X. logging with tensorboard (log every 100 batches or so)
 8. compute bleu score for testing
 X. After every epoch, generate sentences for opposite and same style to see how the model is performing
@@ -55,3 +55,11 @@ X. Dataloader num_workers
 
 Logging:
 reconstruction loss, disc acc, disc loss
+
+X. log validation loss properly
+X. move decoding strategies into a new file
+X. professor teaching -> scheduled sampling
+4. requirements.txt
+5. add inference mode
+
+3.: when computing the loss, use ground truth labels. But the target sequence that is fed into the decoder should be a mix of ground truth and models predictions
