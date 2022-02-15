@@ -43,7 +43,8 @@ def get_parser():
     parser.add_argument('--scheduled-sampling', action='store_true', default=True,
                         help='If True, will use scheduled sampling in training')
     parser.add_argument('--scheduled-sampling-iters', default=2,
-                        type=int, help='Number of sampling iterations used in scheduled sampling. Larger values slow down training but reduces test time exposure bias.')
+                        type=int,
+                        help='Number of sampling iterations used in scheduled sampling. Larger values slow down training but reduces test time exposure bias.')
 
     # Dataset Setting
     parser.add_argument('--batch-size', default=32,
@@ -95,3 +96,11 @@ if __name__ == '__main__':
     model.train()
     if args.evaluate:
         model.evaluate(n=16, train_loader=True, dev_loader=True)
+
+    while True:
+        print('type initial sentence: ')
+        sentence = str(input())
+        print("type initial label: ")
+        label_ = input()
+        label_ = 0 if (int(label_) == 0 or label_.lower() == 'sad') else 1
+        model.style_transfer_sentence(sentence, label=label_)

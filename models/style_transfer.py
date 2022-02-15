@@ -283,6 +283,24 @@ class StyleTransferModel():
             self.show_results(
                 text_batch[i], labels[i].item(), desired_label, result)
 
+    def style_transfer_sentence(self, sentence, label):
+        self.eval_mode()
+        input_ = list(self.tokenizer.transform([sentence]))[0]
+        if self.args.decoding_strategy == 'greedy':
+            print("With greedy strategy: ")
+            result = decode_greedy(1 - label, self.tokenizer, self.emb_layer, self.encoder, self.decoder, input_=input_)
+
+        elif self.args.decoding_strategy == 'beam':
+            print("With beam strategy: ")
+            result = decode_beam(1 - label, self.tokenizer, self.emb_layer, self.encoder, self.decoder, input_=input_,
+                                 K=self.args.beam_width)
+        else:
+            print("With sampling strategy: ")
+            result = decode_sampling(1 - label, self.tokenizer, self.emb_layer, self.encoder, self.decoder,
+                                     input_=input_, top_p=0.95)
+        self.show_results(
+            input_, label, 1 - label, result)
+
     def evaluate(self, n=2, train_loader=True, dev_loader=False, test_loader=False):
         self.eval_mode()
         if train_loader:
