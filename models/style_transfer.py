@@ -140,7 +140,7 @@ class StyleTransferModel():
                 [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
                 self.device))
             decoder_tgt[:, 0, :] = style_embedding.squeeze(1)
-            if self.args.scheduled_sampling:
+            if not self.args.no_scheduled_sampling:
                 self.eval_mode()
                 decoder_tgt = scheduled_sampling(self.emb_layer, self.decoder, memory=encoder_output, style_embedding=style_embedding,
                                                  teacher_targets=decoder_tgt, memory_key_padding_mask=src_key_padding_mask, tgt_mask=tgt_mask,
@@ -156,17 +156,20 @@ class StyleTransferModel():
             enc_loss = - \
                 self.adv_loss_criterion(self.disc(encoder_output), labels)
 
-            if self.update_ae(epoch, idx):
+
+            if self.update_encoder_adv or self.update_ae:
                 self.encoder_optim.zero_grad()
+                
+            if self.update_ae(epoch, idx):
                 self.decoder_optim.zero_grad()
-                rec_loss.backward()
+                rec_loss.backward(retain_graph=True)
                 self.decoder_optim.step()
-                self.encoder_optim.step()
 
             if self.update_encoder_adv(epoch, idx):
-                self.encoder_optim.zero_grad()
                 loss = self.args.lambda_gan * enc_loss
                 loss.backward()
+
+            if self.update_encoder_adv or self.update_ae:
                 self.encoder_optim.step()
 
             if self.update_disc(epoch, idx):
