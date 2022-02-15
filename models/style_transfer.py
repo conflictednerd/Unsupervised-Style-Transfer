@@ -159,14 +159,19 @@ class StyleTransferModel():
             if self.update_ae(epoch, idx):
                 self.encoder_optim.zero_grad()
                 self.decoder_optim.zero_grad()
-                loss = rec_loss + self.args.lambda_gan * \
-                    enc_loss if self.update_disc(epoch, idx) else rec_loss
-                loss.backward()
+                rec_loss.backward()
                 self.decoder_optim.step()
                 self.encoder_optim.step()
+
+            if self.update_encoder_adv(epoch, idx):
+                self.encoder_optim.zero_grad()
+                loss = self.args.lambda_gan * enc_loss
+                loss.backward()
+                self.encoder_optim.step()
+
             if self.update_disc(epoch, idx):
                 self.disc_optim.zero_grad()
-                disc_loss.backward()
+                (self.args.lambda_gan * disc_loss).backward()
                 self.disc_optim.step()
 
             # bookkeeping stats
@@ -326,13 +331,16 @@ class StyleTransferModel():
         '''
         For the first copule of epochs, the discriminator will not be updated
         '''
-        return epoch >= self.args.ae_pretraining_epochs
+        return (epoch >= self.args.ae_pretraining_epochs) and ((batch_idx % self.args.ae_update_freq) < (self.args.ae_update_freq//2))
+
+    def update_encoder_adv(self, epoch: int, batch_idx: int) -> bool:
+        return (epoch >= self.args.ae_pretraining_epochs) and ((batch_idx % self.args.ae_update_freq) >= (self.args.ae_update_freq//2))
 
     def update_ae(self, epoch: int, batch_idx: int) -> bool:
         '''
         For the first couple of epochs, update the ae. After that, update only on some batches
         '''
-        return (epoch < self.args.ae_pretraining_epochs) or (batch_idx % self.args.ae_update_freq == 0)
+        return (epoch < self.args.ae_pretraining_epochs) or (batch_idx % (self.args.ae_update_freq//2) == 0)
 
     def train_mode(self, ) -> None:
         self.emb_layer.train()

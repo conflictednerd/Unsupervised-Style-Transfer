@@ -29,19 +29,19 @@ def get_parser():
                         help='If True, will run evaluation after training. This will print out a certain number of examples from dev set')
 
     # Training
-    parser.add_argument('--epochs', default=50,  # TODO
+    parser.add_argument('--epochs', default=40,  
                         type=int, help='batch size')
-    parser.add_argument('--label-smoothing', default='0.2',
+    parser.add_argument('--label-smoothing', default=0.3,
                         type=float, help='label smoothing ratio used in training the discriminator')
-    parser.add_argument('--lambda-gan', default=50.0,
+    parser.add_argument('--lambda-gan', default=100.0,
                         type=float, help='coefficient of adversarial loss')
-    parser.add_argument('--ae-pretraining-epochs', default=10,
+    parser.add_argument('--ae-pretraining-epochs', default=1,
                         type=int,
                         help='The number of epochs that the autoencoder part will train without adversarial loss')
-    parser.add_argument('--ae-update-freq', default=5,
+    parser.add_argument('--ae-update-freq', default=10,
                         type=int, help='(After pretraining) update the autoencoder once every this many minibatches')
-    parser.add_argument('--scheduled-sampling', action='store_true', default=True,
-                        help='If True, will use scheduled sampling in training')
+    parser.add_argument('--no-scheduled-sampling', action='store_false', default=True,
+                        help='If True, will not use scheduled sampling in training')
     parser.add_argument('--scheduled-sampling-iters', default=2,
                         type=int,
                         help='Number of sampling iterations used in scheduled sampling. Larger values slow down training but reduces test time exposure bias.')
@@ -55,7 +55,7 @@ def get_parser():
                         type=int, help='Number of workers in data loader')
 
     # Encoder
-    parser.add_argument('--d_model', default=128,
+    parser.add_argument('--d_model', default=256,
                         type=int, help='Embedding dimension (same value is used in encoder, decoder')
     parser.add_argument('--encoder-nhead', default=8,
                         type=int, help='Number of attention heads in the encoder')
@@ -63,7 +63,7 @@ def get_parser():
                         type=int, help='Number of transformer layers in the encoder')
     parser.add_argument('--encoder-ff', default=512,
                         type=int, help='Dimension of feed-forward layer in the encoder')
-    parser.add_argument('--encoder-lr', default=2e-5, type=float,  # TODO
+    parser.add_argument('--encoder-lr', default=1e-4, type=float,  # TODO
                         help='Encoder learning rate')
 
     # Decoder
@@ -73,7 +73,7 @@ def get_parser():
                         type=int, help='Number of transformer layers in the decoder')
     parser.add_argument('--decoder-ff', default=512,
                         type=int, help='Dimension of feed-forward layer in the decoder')
-    parser.add_argument('--decoder-lr', default=5e-5, type=float,  # TODO
+    parser.add_argument('--decoder-lr', default=1e-4, type=float,  # TODO
                         help='Decoder learning rate')
 
     # Discriminator
@@ -82,7 +82,7 @@ def get_parser():
     parser.add_argument('--disc-kernels', default=[1, 2, 3, 4, 5, 6, 8, 10],
                         # [1,2,3,4,5,6,8,10,16,32,64,128] for poems
                         type=List[int], help='Size of convolution kernels used in the discriminator')
-    parser.add_argument('--disc-lr', default=1e-4, type=float,  # TODO
+    parser.add_argument('--disc-lr', default=1e-3, type=float,  # TODO
                         help='Discriminator learning rate')
 
     return parser

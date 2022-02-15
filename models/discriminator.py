@@ -14,7 +14,7 @@ class CNNDiscriminator(nn.Module):
     '''
 
     def __init__(self, in_channels: int, out_channels: int, kernel_sizes: List[int],
-                 hidden_size: int, num_classes: int, dropout: float = 0.2) -> None:
+                 hidden_size: int, num_classes: int, dropout: float = 0.3) -> None:
         '''
         Args:
         in_channels -- the input feature maps. Should be only one for text.
@@ -38,7 +38,8 @@ class CNNDiscriminator(nn.Module):
                 kernel_size=(ks, hidden_size),
                 stride=1)
             self.convs.append(conv)
-        self.linear = nn.Linear(out_channels*len(kernel_sizes), num_classes)
+        self.linear1 = nn.Linear(out_channels*len(kernel_sizes), 128)
+        self.linear2 = nn.Linear(128, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         '''
@@ -57,7 +58,8 @@ class CNNDiscriminator(nn.Module):
         # x.shape = [B x (out_channels * len (kernel_sizes) )]
         x = torch.cat(x, 1)
         x = self.dropoutLayer(x)
-        x = self.linear(x)
+        x = F.leaky_relu(self.linear1(x))
+        x = self.linear2(x)
 
         return x
 
