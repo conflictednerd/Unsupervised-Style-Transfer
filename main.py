@@ -29,7 +29,7 @@ def get_parser():
                         help='If True, will run evaluation after training. This will print out a certain number of examples from dev set')
 
     # Training
-    parser.add_argument('--epochs', default=40,  
+    parser.add_argument('--epochs', default=40,
                         type=int, help='batch size')
     parser.add_argument('--label-smoothing', default=0.3,
                         type=float, help='label smoothing ratio used in training the discriminator')
@@ -40,7 +40,7 @@ def get_parser():
                         help='The number of epochs that the autoencoder part will train without adversarial loss')
     parser.add_argument('--ae-update-freq', default=10,
                         type=int, help='(After pretraining) update the autoencoder once every this many minibatches')
-    parser.add_argument('--no-scheduled-sampling', action='store_false', default=True,
+    parser.add_argument('--no-scheduled-sampling', action='store_true', default=False,
                         help='If True, will not use scheduled sampling in training')
     parser.add_argument('--scheduled-sampling-iters', default=2,
                         type=int,
@@ -79,11 +79,15 @@ def get_parser():
     # Discriminator
     parser.add_argument('--disc-channels', default=4,
                         type=int, help='Number of output channels for discriminators conv layers')
-    parser.add_argument('--disc-kernels', default=[1, 2, 3, 4, 5, 6, 8, 10],
+    parser.add_argument('--disc-kernels', nargs='*', default=[1, 2, 3, 4, 5, 6, 8, 10],
                         # [1,2,3,4,5,6,8,10,16,32,64,128] for poems
-                        type=List[int], help='Size of convolution kernels used in the discriminator')
+                        type=int, help='Size of convolution kernels used in the discriminator')
     parser.add_argument('--disc-lr', default=1e-3, type=float,  # TODO
                         help='Discriminator learning rate')
+    parser.add_argument('--add-noise', default=True, type=bool,
+                        hekp='If ture, will add Gaussian noise to discriminator\'s input')
+    parser.add_argument('--noise-std', default=0.2, type=float,
+                        help='Standard deviation of added noise to discriminator\'s input')
 
     return parser
 
