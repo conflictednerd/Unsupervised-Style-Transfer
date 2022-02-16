@@ -134,7 +134,7 @@ class StyleTransferModel():
             embedded_inputs = self.emb_layer(text_batch)
             encoder_output = self.encoder(
                 embedded_inputs, src_key_padding_mask)
-            encoder_output_detached = encoder_output.detach()  # TODO: add noise
+            encoder_output_detached = encoder_output.detach()
             decoder_tgt = torch.roll(encoder_output, shifts=1, dims=1)
             style_embedding = self.emb_layer(torch.tensor(
                 [self.tokenizer.encoder.word_vocab[f'__style{label+1}'] for label in labels]).unsqueeze(-1).to(
@@ -152,7 +152,7 @@ class StyleTransferModel():
             rec_loss = self.rec_loss_criterion(
                 decoder_output.flatten(0, 1), text_batch.flatten())
             if self.args.add_noise:
-                encoder_output_detached = self.add_noise(x, self.args.noise_std)
+                encoder_output_detached = self.add_noise(encoder_output_detached, self.args.noise_std)
             disc_logits = self.disc(encoder_output_detached)
             disc_loss = self.adv_loss_criterion(disc_logits, labels)
             enc_loss = - \

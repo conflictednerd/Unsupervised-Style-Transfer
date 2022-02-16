@@ -85,7 +85,7 @@ def get_parser():
     parser.add_argument('--disc-lr', default=1e-3, type=float,  # TODO
                         help='Discriminator learning rate')
     parser.add_argument('--add-noise', default=True, type=bool,
-                        hekp='If ture, will add Gaussian noise to discriminator\'s input')
+                        help='If ture, will add Gaussian noise to discriminator\'s input')
     parser.add_argument('--noise-std', default=0.2, type=float,
                         help='Standard deviation of added noise to discriminator\'s input')
 
