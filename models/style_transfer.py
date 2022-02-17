@@ -159,39 +159,41 @@ class StyleTransferModel():
                 self.adv_loss_criterion(self.disc(encoder_output), labels)
 
 
-            # ae_loss = self.args.lambda_gan * enc_loss + rec_loss
-            # disc_loss = self.args.lambda_gan * disc_loss
-            # if self.update_ae(epoch, idx):
-            #     self.encoder_optim.zero_grad()
-            #     self.decoder_optim.zero_grad()
-            #     ae_loss.backward()
-            #     self.encoder_optim.step()
-            #     self.decoder_optim.step()
-
-            # if self.update_disc(epoch, idx): # should be epoch > pre-training-epochs
-            #     self.disc_optim.zero_grad()
-            #     disc_loss.backward()
-            #     self.disc_optim.step()
-
-            if self.update_encoder_adv(epoch, idx) or self.update_ae(epoch, idx):
-                self.encoder_optim.zero_grad()
-
+            ae_loss = rec_loss
+            if epoch > self.args.ae_pretraining_epochs:
+                ae_loss += self.args.lambda_gan * enc_loss
+            disc_loss = self.args.lambda_gan * disc_loss
             if self.update_ae(epoch, idx):
+                self.encoder_optim.zero_grad()
                 self.decoder_optim.zero_grad()
-                rec_loss.backward(retain_graph=True)
+                ae_loss.backward()
+                self.encoder_optim.step()
                 self.decoder_optim.step()
 
-            if self.update_encoder_adv(epoch, idx):
-                loss = self.args.lambda_gan * enc_loss
-                loss.backward()
-
-            if self.update_encoder_adv(epoch, idx) or self.update_ae(epoch, idx):
-                self.encoder_optim.step()
-
-            if self.update_disc(epoch, idx):
+            if epoch > self.args.ae_pretraining_epochs: # should be epoch > pre-training-epochs
                 self.disc_optim.zero_grad()
-                (self.args.lambda_gan * disc_loss).backward()
+                disc_loss.backward()
                 self.disc_optim.step()
+
+            # if self.update_encoder_adv(epoch, idx) or self.update_ae(epoch, idx):
+            #     self.encoder_optim.zero_grad()
+
+            # if self.update_ae(epoch, idx):
+            #     self.decoder_optim.zero_grad()
+            #     rec_loss.backward(retain_graph=True)
+            #     self.decoder_optim.step()
+
+            # if self.update_encoder_adv(epoch, idx):
+            #     loss = self.args.lambda_gan * enc_loss
+            #     loss.backward()
+
+            # if self.update_encoder_adv(epoch, idx) or self.update_ae(epoch, idx):
+            #     self.encoder_optim.step()
+
+            # if self.update_disc(epoch, idx):
+            #     self.disc_optim.zero_grad()
+            #     (self.args.lambda_gan * disc_loss).backward()
+            #     self.disc_optim.step()
 
             # bookkeeping stats
             batch_size = len(labels)
