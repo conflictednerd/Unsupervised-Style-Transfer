@@ -152,7 +152,7 @@ class StyleTransferModel():
             rec_loss = self.rec_loss_criterion(
                 decoder_output.flatten(0, 1), text_batch.flatten())
             if self.args.add_noise:
-                encoder_output_detached = self.add_noise(encoder_output_detached, self.args.noise_std)
+                encoder_output_detached = self.add_noise(encoder_output_detached, epoch, self.args.noise_std)
             disc_logits = self.disc(encoder_output_detached)
             disc_loss = self.adv_loss_criterion(disc_logits, labels)
             enc_loss = - \
@@ -332,8 +332,8 @@ class StyleTransferModel():
         with open(os.path.join('./' + self.log_dir, 'config.json'), 'w') as f:
             json.dump(vars(self.args), f)
 
-    def add_noise(self, x, std=0.2):
-        return x + std * torch.randn_like(x)
+    def add_noise(self, x, epoch, std=0.2):
+        return x + std*(1 - epoch/self.args.epochs) * torch.randn_like(x)
 
     def update_disc(self, epoch: int, batch_idx: int) -> bool:
         '''
